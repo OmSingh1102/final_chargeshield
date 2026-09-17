@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+{# The client portal is deliberately not themed: data-theme is absent here even
+   though the four internal shells carry it, and _account_settings.html is
+   included with show_theme=false. A merchant sees one fixed palette.
+
+   That palette is now blue rather than the internal orange — see .client-theme
+   in style.css. It mirrors the split Case Investigator Pro makes between its
+   internal and merchant portals, so which side of the product you are looking
+   at is obvious without reading the header. #}
+<html lang="en" class="client-theme">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Client Portal - ChargeShield AI{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {# Shell, panel, table and pill CSS moved to the component layer of
+       style.css. This file used to carry its own copy of all four. #}
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+<div class="app" id="app">
+    <aside class="app-side">
+        <div class="app-side-brand">
+            <div class="brand-row">
+                <span class="brand-mark" style="background:rgba(255,255,255,.2);box-shadow:none">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 1.5 3.5 5.2v6.4c0 5.2 3.6 10 8.5 11.4 4.9-1.4 8.5-6.2 8.5-11.4V5.2L12 1.5Zm-1.3 15.1-4-4 1.6-1.6 2.4 2.4 5.4-5.4 1.6 1.6-7 7Z"/>
+                    </svg>
+                </span>
+                <div style="min-width:0">
+                    <div class="bname">Client Portal</div>
+                    <div class="bsub">ChargeShield AI</div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-icon" data-side-toggle aria-label="Collapse sidebar">&#8249;</button>
+        </div>
+
+        <nav class="app-nav">
+            <div class="app-nav-title">{{ c.client }}</div>
+            {% for item in client_nav %}
+            <a href="{{ url_for(item.endpoint) }}"
+               class="side-link {% if request.endpoint == item.endpoint %}active{% endif %}">
+                <span class="si">{{ icon(item.icon) }}</span>
+                <span class="lbl">{{ item.label }}</span>
+            </a>
+            {% endfor %}
+        </nav>
+
+        <div class="app-side-foot">
+            <div class="app-user">
+                <span class="av">{{ session.user[0]|upper }}</span>
+                <div style="min-width:0">
+                    <div class="nm">{{ session.user }}</div>
+                    <div class="rl">{{ role_label }}</div>
+                </div>
+            </div>
+            <form method="post" action="{{ url_for('logout') }}" style="margin-top:8px">
+                <button type="submit" class="btn btn-ghost btn-block">
+                    <span class="si">{{ icon('log-out') }}</span> <span class="lbl">Logout</span>
+                </button>
+            </form>
+        </div>
+    </aside>
+
+    <div class="app-body">
+        <header class="app-header">
+            {% include "_home_button.html" %}
+            <div class="divider"></div>
+            <div class="ptitle">Client Portal &mdash; Chargeback Defense Platform</div>
+            <div class="spacer"></div>
+            <div class="who">{{ session.user }} ({{ role_label }})</div>
+            <div class="brand-logo">
+                <img src="{{ url_for('static', filename='img/straive-logo.png') }}" alt="Straive">
+            </div>
+        </header>
+
+        <main class="app-main">
+            {% include "_flashes.html" %}
+            <div class="wrap">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+</div>
+
+{% include "_side_toggle.html" %}
+{% include "_live_refresh.html" %}
+{% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,258 @@
+{% extends "agent_base.html" %}
+{% block title %}Dashboard - Agent Level Interface{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .kpi {
+        background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 16px;
+        padding: 18px 20px; box-shadow: var(--shadow); border-top: 3px solid var(--brand);
+    }
+    .kpi .v { font-size: 27px; font-weight: 800; color: var(--ink); line-height: 1.1; }
+    .kpi .l { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-soft); margin-top: 5px; }
+
+    .panel {
+        background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 18px;
+        padding: 22px 24px; box-shadow: var(--shadow); margin-bottom: 22px;
+    }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+    .panel-head h3 { font-size: 16px; font-weight: 800; color: var(--ink); }
+    .panel-head .sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
+    /* ─── Productivity period filter ─── */
+    .period-tabs { display: flex; gap: 6px; }
+    .period-tab {
+        padding: 7px 15px; border-radius: 8px; border: 1px solid var(--line-strong);
+        background: var(--c-fffbf8, #fffbf8); font-size: 12.5px; font-weight: 700; font-family: inherit;
+        color: var(--c-7a5c49, #7a5c49); cursor: pointer; transition: all .18s;
+    }
+    .period-tab:hover { border-color: var(--brand); color: var(--brand-dark); }
+    .period-tab.active { background: var(--ink); border-color: var(--ink); color: var(--on-accent, #fff); }
+
+    .prod-list { display: flex; flex-direction: column; gap: 11px; }
+    .prod-row { display: grid; grid-template-columns: 110px 1fr 92px; align-items: center; gap: 14px; }
+    .prod-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+    .prod-track { height: 22px; background: var(--c-f7ede5, #f7ede5); border-radius: 6px; overflow: hidden; position: relative; }
+    .prod-fill { height: 100%; background: linear-gradient(90deg, var(--c-ff8a4c, #ff8a4c), var(--brand)); border-radius: 6px; }
+    .prod-fill.on { background: linear-gradient(90deg, var(--c-4caf50, #4caf50), #2e7d32); }
+    .prod-val { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-align: right; }
+    .prod-val b { color: var(--ink); font-size: 13.5px; }
+
+    /* ─── Calendar ─── */
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .cal-dow { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-soft); text-align: center; padding-bottom: 4px; }
+    .cal-cell {
+        aspect-ratio: 1 / .82; border: 1px solid var(--line); border-radius: 9px;
+        padding: 6px 8px; background: var(--c-fffdfb, #fffdfb); display: flex; flex-direction: column;
+        justify-content: space-between; min-height: 62px;
+    }
+    .cal-cell.out { opacity: .32; }
+    .cal-cell.work { background: var(--c-fff4ec, #fff4ec); border-color: var(--line-strong); }
+    .cal-cell.on-target { background: #e9f6ea; border-color: #a5d6a7; }
+    .cal-day { font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+    .cal-count { font-size: 17px; font-weight: 800; color: var(--brand-dark); line-height: 1; }
+    .cal-cell.on-target .cal-count { color: #2e7d32; }
+    .cal-bar { height: 4px; border-radius: 3px; background: var(--c-f0ddd0, #f0ddd0); overflow: hidden; }
+    .cal-bar i { display: block; height: 100%; background: var(--brand); }
+    .cal-cell.on-target .cal-bar i { background: #2e7d32; }
+
+    .cal-summary { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line-strong); }
+    .cal-summary div { font-size: 12px; color: var(--ink-soft); }
+    .cal-summary b { display: block; font-size: 18px; font-weight: 800; color: var(--ink); }
+
+    .data-note {
+        margin-top: 14px; padding: 11px 15px; background: var(--brand-wash, #fff7f2);
+        border: 1px dashed var(--line-strong); border-radius: 10px;
+        font-size: 12px; color: var(--ink-soft-2, #7a6558); line-height: 1.55;
+    }
+
+    /* ─── Charts ─── */
+    .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 18px; }
+    .pie-wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+    .pie { width: 148px; height: 148px; border-radius: 50%; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,.05); }
+    .pie-legend { flex: 1; min-width: 130px; display: flex; flex-direction: column; gap: 7px; }
+    .leg { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+    .leg .dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+    .leg .nm { flex: 1; color: var(--ink); font-weight: 600; }
+    .leg .ct { font-weight: 800; color: var(--ink); }
+    .leg .pc { color: var(--ink-soft); font-size: 11.5px; min-width: 40px; text-align: right; }
+
+    .stack-row { display: grid; grid-template-columns: 128px 1fr 46px; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .stack-name { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+    .stack-bar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; background: var(--c-f7ede5, #f7ede5); }
+    .stack-seg { height: 100%; }
+    .stack-total { font-size: 13px; font-weight: 800; color: var(--ink); text-align: right; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="agent-head">
+    <h2>Dashboard</h2>
+    <p>Your own cases and productivity. Nothing here covers other agents.</p>
+    <span class="scope-note">&#128274; Scoped to {{ a.agent }} &mdash; {{ a.total_cases }} cases</span>
+</div>
+
+<div class="kpi-strip">
+    <div class="kpi"><div class="v">{{ a.total_cases }}</div><div class="l">My Cases</div></div>
+    <div class="kpi"><div class="v">{{ a.open_tasks }}</div><div class="l">Open Tasks</div></div>
+    <div class="kpi"><div class="v">{{ a.actioned }}</div><div class="l">Actioned</div></div>
+</div>
+
+<!-- ═══ Productivity, filterable by period ═══ -->
+<div class="panel">
+    <div class="panel-head">
+        <div>
+            <h3>My Productivity</h3>
+            <div class="sub">Cases handled against a target of {{ a.calendar.target }}/day.</div>
+        </div>
+        <div class="period-tabs">
+            {% for key in ['daily', 'weekly', 'monthly'] %}
+            <button class="period-tab {% if period == key %}active{% endif %}"
+                    data-period="{{ key }}" onclick="showPeriod('{{ key }}', this)">{{ key|capitalize }}</button>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% for key, rows in a.productivity.items() %}
+    <div class="prod-list period-pane" id="pane-{{ key }}" style="display:{% if period == key %}flex{% else %}none{% endif %};">
+        {% for r in rows %}
+        <div class="prod-row">
+            <div class="prod-label">{{ r.label }}</div>
+            <div class="prod-track"><div class="prod-fill {% if r.on_target %}on{% endif %}" style="width:{{ r.pct }}%;"></div></div>
+            <div class="prod-val"><b>{{ r.count }}</b> / {{ r.target }}</div>
+        </div>
+        {% else %}
+        <div class="sub">No activity recorded.</div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ═══ Monthly calendar against the daily target ═══ -->
+<div class="panel">
+    <div class="panel-head">
+        <div>
+            <h3>{{ a.calendar.month_name }} {{ a.calendar.year }}</h3>
+            <div class="sub">Daily output against the {{ a.calendar.target }}-case target.</div>
+        </div>
+        <div class="period-tabs">
+            <a class="period-tab" href="{{ url_for('agent_dashboard', year=a.calendar.year if a.calendar.month > 1 else a.calendar.year - 1, month=a.calendar.month - 1 if a.calendar.month > 1 else 12) }}">&larr; Prev</a>
+            <a class="period-tab" href="{{ url_for('agent_dashboard', year=a.calendar.year if a.calendar.month < 12 else a.calendar.year + 1, month=a.calendar.month + 1 if a.calendar.month < 12 else 1) }}">Next &rarr;</a>
+        </div>
+    </div>
+
+    <div class="cal-grid">
+        {% for d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}
+        <div class="cal-dow">{{ d }}</div>
+        {% endfor %}
+        {% for week in a.calendar.weeks %}
+            {% for cell in week %}
+            <div class="cal-cell {% if not cell.in_month %}out{% endif %} {% if cell.has_work %}work{% endif %} {% if cell.on_target %}on-target{% endif %}">
+                <div class="cal-day">{{ cell.day }}</div>
+                {% if cell.has_work %}
+                <div class="cal-count">{{ cell.count }}</div>
+                <div class="cal-bar"><i style="width:{{ cell.pct }}%;"></i></div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% endfor %}
+    </div>
+
+    <div class="cal-summary">
+        <div><b>{{ a.calendar.total }}</b> cases this month</div>
+        <div><b>{{ a.calendar.days_with_work }}</b> days with work</div>
+        <div><b>{{ a.calendar.best_day }}</b> best day</div>
+        <div><b>{{ a.calendar.days_on_target }}</b> days on target</div>
+    </div>
+
+    <div class="data-note">
+        <b>About this data.</b> The loaded sheet records disputes on only four dates
+        (10&ndash;13 June 2026), and {{ a.agent }} owns {{ a.total_cases }} cases in total &mdash; so
+        the best possible day is well under the {{ a.calendar.target }}-case target and the rest of
+        the month is empty. These are the real figures, not padded ones.
+    </div>
+</div>
+
+<!-- ═══ My cases, broken down ═══ -->
+{# ManagerCharts.compute returns {"has_data": False} with nothing to chart, so
+   a.charts.breakdown does not exist until this agent has cases. #}
+{% if a.charts.has_data %}
+<div class="chart-grid">
+    <div class="panel">
+        <div class="panel-head"><div><h3>CB on Card Type</h3><div class="sub">My {{ a.total_cases }} cases by network.</div></div></div>
+        <div class="pie-wrap">
+            <div class="pie" style="background: conic-gradient({% for r in a.charts.breakdown.network_rows %}{{ r.color }} {{ r.start_deg }}deg {{ r.end_deg }}deg{% if not loop.last %}, {% endif %}{% endfor %});"></div>
+            <div class="pie-legend">
+                {% for r in a.charts.breakdown.network_rows %}
+                <div class="leg">
+                    <span class="dot" style="background:{{ r.color }};"></span>
+                    <span class="nm">{{ r.name }}</span>
+                    <span class="ct">{{ r.count }}</span>
+                    <span class="pc">{{ r.pct }}%</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-head"><div><h3>Fought vs Not Fought</h3><div class="sub">How my cases were handled.</div></div></div>
+        <div class="pie-wrap">
+            <div class="pie" style="background: conic-gradient({% for r in a.charts.performance.fought_rows %}{{ r.color }} {{ r.start_deg }}deg {{ r.end_deg }}deg{% if not loop.last %}, {% endif %}{% endfor %});"></div>
+            <div class="pie-legend">
+                {% for r in a.charts.performance.fought_rows %}
+                <div class="leg">
+                    <span class="dot" style="background:{{ r.color }};"></span>
+                    <span class="nm">{{ r.name }}</span>
+                    <span class="ct">{{ r.count }}</span>
+                    <span class="pc">{{ r.pct }}%</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-head"><div><h3>CB Status vs Card Type</h3><div class="sub">Each status split by the network it came in on.</div></div></div>
+    {% for st in a.charts.performance.status_stacks %}
+    <div class="stack-row">
+        <div class="stack-name">{{ st.name }}</div>
+        <div class="stack-bar">
+            {% for seg in st.segments %}
+            <div class="stack-seg" style="width:{{ seg.pct }}%; background:{{ seg.color }};" title="{{ seg.name }}: {{ seg.count }}"></div>
+            {% endfor %}
+        </div>
+        <div class="stack-total">{{ st.total }}</div>
+    </div>
+    {% endfor %}
+    <div class="pie-legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-top:12px;">
+        {% for n in a.charts.networks %}
+        <div class="leg" style="flex:0 0 auto;">
+            <span class="dot" style="background:{{ a.charts.network_colors[n] }};"></span>
+            <span class="nm">{{ n }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+{# An agent with no cases is the normal state right after an ingest, before a
+   team lead has allocated anything — so this is not phrased as an error. #}
+{% with title = "No cases assigned to you yet",
+        lead = "Your team lead allocates cases from the Chargeback Management page. Anything assigned to you will appear here.",
+        cta = false %}
+{% include "_empty_state.html" %}
+{% endwith %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showPeriod(key, btn) {
+    document.querySelectorAll('.period-pane').forEach(function (p) { p.style.display = 'none'; });
+    document.getElementById('pane-' + key).style.display = 'flex';
+    document.querySelectorAll('.period-tab[data-period]').forEach(function (t) { t.classList.remove('active'); });
+    btn.classList.add('active');
+}
+</script>
+{% endblock %}

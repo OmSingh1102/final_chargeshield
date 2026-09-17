@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+{% block title %}API Integration - ChargeShield AI{% endblock %}
+
+{% block extra_css %}
+<style>
+.int-section { background:var(--surface, #fff); border-radius:10px; padding:20px 24px; margin-bottom:18px; box-shadow:0 1px 6px rgba(0,0,0,.06); }
+.int-section-title { font-size:14px; font-weight:800; color:var(--ink-2, #2e1f17); text-transform:uppercase; letter-spacing:.4px; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--surface-2, #f7efe9); }
+
+/* Workflow */
+.wf-steps { display:flex; align-items:center; gap:0; flex-wrap:wrap; justify-content:center; margin:16px 0; }
+.wf-step { background:var(--c-fcf6f1, #fcf6f1); border-radius:8px; padding:12px 16px; text-align:center; min-width:120px; border:1px solid var(--c-efe2d8, #efe2d8); }
+.wf-step-label { font-size:11px; font-weight:700; color:var(--c-6b584c, #6b584c); }
+.wf-arrow { font-size:18px; color:var(--ink-faint, #b0998a); padding:0 6px; }
+
+/* Portal cards */
+.portal-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:14px; }
+.portal-card { background:var(--surface, #fff); border-radius:10px; padding:18px 20px; border:1px solid var(--c-efe2d8, #efe2d8); border-left:4px solid var(--ink-soft-2, #7a6558); }
+.portal-card h4 { font-size:13px; font-weight:800; color:var(--ink-2, #2e1f17); margin:0 0 8px; }
+.portal-card p { font-size:12px; color:var(--ink-muted, #9c8578); margin:0 0 10px; line-height:1.5; }
+.portal-card .portal-status { display:flex; justify-content:space-between; align-items:center; font-size:11px; }
+.portal-card .portal-badge { padding:3px 10px; border-radius:4px; font-weight:700; font-size:10px; }
+.portal-badge-active { background:#e8f5e9; color:#2e7d32; }
+.portal-badge-config { background:#fff3e0; color:#e65100; }
+.portal-fields { margin-top:8px; font-size:11px; color:var(--ink-soft-2, #7a6558); }
+.portal-fields span { display:inline-block; background:var(--surface-2, #f7efe9); padding:2px 8px; border-radius:3px; margin:2px 2px; font-size:10px; }
+
+/* Cross-match */
+.match-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:10px; }
+.match-item { background:var(--c-fcf6f1, #fcf6f1); border-radius:6px; padding:10px 14px; display:flex; align-items:center; gap:10px; }
+.match-icon { font-size:18px; }
+.match-label { font-size:12px; font-weight:600; color:var(--ink-2, #2e1f17); }
+.match-desc { font-size:11px; color:var(--ink-muted, #9c8578); }
+
+/* Live status table */
+.status-table { width:100%; border-collapse:collapse; font-size:12px; }
+.status-table th { text-align:left; color:var(--ink-muted, #9c8578); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--surface-2, #f7efe9); font-size:11px; text-transform:uppercase; }
+.status-table td { padding:10px; border-bottom:1px solid var(--c-f5f5f5, #f5f5f5); color:var(--ink-2, #2e1f17); }
+.status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+.status-dot-green { background:#2e7d32; }
+.status-dot-orange { background:#e65100; }
+.status-dot-gray { background:var(--c-d0bcae, #d0bcae); }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 style="font-size:20px; font-weight:800; color:#2e1f17; margin-bottom:4px;">API Integration Framework</h2>
+<p style="font-size:13px; color:#9c8578; margin-bottom:20px;">Centralized platform connecting to external portals for complete evidence compilation</p>
+
+{# ── Workflow Diagram ── #}
+<div class="int-section">
+    <div class="int-section-title">Dispute Automation Workflow</div>
+    <div class="wf-steps">
+        <div class="wf-step" style="border-color:#c62828;">
+            <div style="font-size:18px;">&#128100;</div>
+            <div class="wf-step-label">Consumer Raises<br>Dispute</div>
+        </div>
+        <div class="wf-arrow">&rarr;</div>
+        <div class="wf-step" style="border-color:#e65100;">
+            <div style="font-size:18px;">&#127974;</div>
+            <div class="wf-step-label">Issuer Bank<br>Files Chargeback</div>
+        </div>
+        <div class="wf-arrow">&rarr;</div>
+        <div class="wf-step" style="border-color:#f4611a;">
+            <div style="font-size:18px;">&#128229;</div>
+            <div class="wf-step-label">PSP Receives<br>Dispute Document</div>
+        </div>
+        <div class="wf-arrow">&rarr;</div>
+        <div class="wf-step" style="border-color:#2e7d32; background:#e8f5e9;">
+            <div style="font-size:18px;">&#129302;</div>
+            <div class="wf-step-label">Platform Ingests<br>via API</div>
+        </div>
+        <div class="wf-arrow">&rarr;</div>
+        <div class="wf-step" style="border-color:#b45309;">
+            <div style="font-size:18px;">&#128269;</div>
+            <div class="wf-step-label">Cross-Portal<br>Data Matching</div>
+        </div>
+        <div class="wf-arrow">&rarr;</div>
+        <div class="wf-step" style="border-color:#9a3412;">
+            <div style="font-size:18px;">&#128196;</div>
+            <div class="wf-step-label">Evidence<br>Compiled</div>
+        </div>
+        <div class="wf-arrow">&rarr;</div>
+        <div class="wf-step" style="border-color:#2e1f17;">
+            <div style="font-size:18px;">&#9989;</div>
+            <div class="wf-step-label">Submit<br>Defense</div>
+        </div>
+    </div>
+</div>
+
+{# ── Portal Connections ── #}
+<div class="int-section">
+    <div class="int-section-title">Connected Portals &amp; API Sources</div>
+    <div class="portal-grid">
+        {# PSP Portal #}
+        <div class="portal-card" style="border-left-color:#f4611a;">
+            <h4>PSP Portal API</h4>
+            <p>Downloads dispute notifications in real-time. Captures case ID, reason code, card last 4, transaction date, amount, response deadline.</p>
+            <div class="portal-fields">
+                <span>Dispute Ref</span><span>Reason Code</span><span>Card Last 4</span><span>Amount</span><span>Due Date</span><span>Card Network</span>
+            </div>
+            <div class="portal-status" style="margin-top:10px;">
+                <span>Adyen, Stripe, Braintree, Worldpay</span>
+                <span class="portal-badge portal-badge-active">Active</span>
+            </div>
+        </div>
+
+        {# Payment Gateway #}
+        <div class="portal-card" style="border-left-color:#2e7d32;">
+            <h4>Payment Gateway API</h4>
+            <p>Fetches transaction copies, authorization records, IP address, AVS/CVV match, 3DS status, and previously undisputed transactions.</p>
+            <div class="portal-fields">
+                <span>Auth Code</span><span>AVS Status</span><span>CVV Match</span><span>3DS</span><span>IP Address</span><span>Transaction Copy</span>
+            </div>
+            <div class="portal-status" style="margin-top:10px;">
+                <span>Transaction date/amount/card matching</span>
+                <span class="portal-badge portal-badge-active">Active</span>
+            </div>
+        </div>
+
+        {# CRM #}
+        <div class="portal-card" style="border-left-color:#e65100;">
+            <h4>CRM / Order Management API</h4>
+            <p>Searches orders by transaction ID. Returns customer email, phone, product purchased, quantity, delivery status, tracking number, IP address.</p>
+            <div class="portal-fields">
+                <span>Order ID</span><span>Customer Email</span><span>Phone</span><span>Product</span><span>Amount</span><span>Tracking #</span>
+            </div>
+            <div class="portal-status" style="margin-top:10px;">
+                <span>Order confirmation + email status</span>
+                <span class="portal-badge portal-badge-active">Active</span>
+            </div>
+        </div>
+
+        {# Fulfillment / Shipment #}
+        <div class="portal-card" style="border-left-color:#b45309;">
+            <h4>Fulfillment / Shipment Portal API</h4>
+            <p>Tracks shipments via USPS, FedEx, UPS, Veho, DHL. Downloads POD based on delivery status: Delivered = include, Pending = exclude, Returned = exclude.</p>
+            <div class="portal-fields">
+                <span>Tracking Number</span><span>Carrier</span><span>Delivery Status</span><span>Delivery Date</span><span>Signature</span><span>POD</span>
+            </div>
+            <div class="portal-status" style="margin-top:10px;">
+                <span>USPS, FedEx, UPS, Veho, DHL</span>
+                <span class="portal-badge portal-badge-active">Active</span>
+            </div>
+        </div>
+
+        {# Repository #}
+        <div class="portal-card" style="border-left-color:#9a3412;">
+            <h4>Document Repository</h4>
+            <p>Stores cover letter templates by reason code, Terms &amp; Conditions, Return/Refund Policy, Checkout Page screenshots, and policy documents.</p>
+            <div class="portal-fields">
+                <span>Cover Letters</span><span>T&amp;C</span><span>Refund Policy</span><span>Checkout Page</span><span>Cancellation Policy</span>
+            </div>
+            <div class="portal-status" style="margin-top:10px;">
+                <span>7 reason code templates</span>
+                <span class="portal-badge portal-badge-active">Active</span>
+            </div>
+        </div>
+
+        {# AI Engine #}
+        <div class="portal-card" style="border-left-color:#c62828;">
+            <h4>AI Cover Letter Engine</h4>
+            <p>Automatically modifies cover letter based on available supporting documents. Selects template by reason code, fills variables from case data, generates dynamic evidence list.</p>
+            <div class="portal-fields">
+                <span>Template Selection</span><span>Variable Mapping</span><span>Evidence List</span><span>Winning Ratio</span>
+            </div>
+            <div class="portal-status" style="margin-top:10px;">
+                <span>Rule-based + template engine</span>
+                <span class="portal-badge portal-badge-active">Active</span>
+            </div>
+        </div>
+
+        {# PDF Converter #}
+        <div class="portal-card" style="border-left-color:#2e1f17;">
+            <h4>PDF Converter</h4>
+            <p>Compiles cover letter template, evidence documents, and policy attachments into a single formatted PDF packet for submission to processor.</p>
+            <div class="portal-fields">
+                <span>Cover Letter</span><span>Evidence Packet</span><span>Format</span><span>Size Adjustment</span>
+            </div>
+            <div class="portal-status" style="margin-top:10px;">
+                <span>Letter format, Times New Roman</span>
+                <span class="portal-badge portal-badge-active">Active</span>
+            </div>
+        </div>
+
+        {# External DBs #}
+        <div class="portal-card" style="border-left-color:#7a6558;">
+            <h4>External Database (RDS / Pearl)</h4>
+            <p>Cross-references delivery details, tracking numbers, item descriptions. Retrieves records for complex fraud and item-not-received cases.</p>
+            <div class="portal-fields">
+                <span>Delivery Details</span><span>Item Descriptions</span><span>Fraud Records</span><span>Google Search</span>
+            </div>
+            <div class="portal-status" style="margin-top:10px;">
+                <span>Pearl, Google, RDS</span>
+                <span class="portal-badge portal-badge-config">Configurable</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Cross-Portal Data Matching ── #}
+<div class="int-section">
+    <div class="int-section-title">Cross-Portal Data Matching Logic</div>
+    <p style="font-size:12px; color:#9c8578; margin-bottom:14px;">The system takes unique identifiers from the dispute notification and runs cross-portal queries to map the data to the corresponding merchant transaction.</p>
+    <div class="match-grid">
+        <div class="match-item">
+            <div class="match-icon">&#128197;</div>
+            <div><div class="match-label">Transaction Date</div><div class="match-desc">Match dispute date to order date</div></div>
+        </div>
+        <div class="match-item">
+            <div class="match-icon">&#128176;</div>
+            <div><div class="match-label">Transaction Amount</div><div class="match-desc">Match disputed amount to order total</div></div>
+        </div>
+        <div class="match-item">
+            <div class="match-icon">&#128179;</div>
+            <div><div class="match-label">Card Network</div><div class="match-desc">Match Visa/MC/Amex to payment method</div></div>
+        </div>
+        <div class="match-item">
+            <div class="match-icon">&#128290;</div>
+            <div><div class="match-label">Last 4 Card Digits</div><div class="match-desc">Match card last 4 to order record</div></div>
+        </div>
+        <div class="match-item">
+            <div class="match-icon">&#128196;</div>
+            <div><div class="match-label">Transaction ID</div><div class="match-desc">Direct match to payment reference</div></div>
+        </div>
+        <div class="match-item">
+            <div class="match-icon">&#127760;</div>
+            <div><div class="match-label">IP Address</div><div class="match-desc">Verify customer geolocation</div></div>
+        </div>
+    </div>
+</div>
+
+{# ── Live Integration Status ── #}
+<div class="int-section">
+    <div class="int-section-title">Live Integration Status</div>
+    <table class="status-table">
+        <thead>
+            <tr>
+                <th>Portal</th>
+                <th>Status</th>
+                <th>Last Sync</th>
+                <th>Records</th>
+                <th>Latency</th>
+                <th>Data Fields</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="font-weight:700;">PSP Portal</td>
+                <td><span class="status-dot status-dot-green"></span>Connected</td>
+                <td>{{ now }}</td>
+                <td>{{ total_cases }} disputes</td>
+                <td>150ms</td>
+                <td>Dispute ref, RC, amount, card, dates</td>
+            </tr>
+            <tr>
+                <td style="font-weight:700;">Payment Gateway</td>
+                <td><span class="status-dot status-dot-green"></span>Connected</td>
+                <td>{{ now }}</td>
+                <td>{{ total_cases }} matched</td>
+                <td>230ms</td>
+                <td>Auth, AVS, CVV, 3DS, IP, txn copy</td>
+            </tr>
+            <tr>
+                <td style="font-weight:700;">CRM / Order DB</td>
+                <td><span class="status-dot status-dot-green"></span>Connected</td>
+                <td>{{ now }}</td>
+                <td>1,000 orders</td>
+                <td>180ms</td>
+                <td>Order, customer, email, product, tracking</td>
+            </tr>
+            <tr>
+                <td style="font-weight:700;">Fulfillment / POD</td>
+                <td><span class="status-dot status-dot-green"></span>Connected</td>
+                <td>{{ now }}</td>
+                <td>5 carriers</td>
+                <td>350ms</td>
+                <td>Tracking, delivery, signature, POD</td>
+            </tr>
+            <tr>
+                <td style="font-weight:700;">Document Repository</td>
+                <td><span class="status-dot status-dot-green"></span>Active</td>
+                <td>{{ now }}</td>
+                <td>7 templates</td>
+                <td>10ms</td>
+                <td>Cover letters, policies, T&amp;C</td>
+            </tr>
+            <tr>
+                <td style="font-weight:700;">AI Engine</td>
+                <td><span class="status-dot status-dot-green"></span>Active</td>
+                <td>{{ now }}</td>
+                <td>7 categories</td>
+                <td>50ms</td>
+                <td>Template selection, variable mapping</td>
+            </tr>
+            <tr>
+                <td style="font-weight:700;">RDS / Pearl / Google</td>
+                <td><span class="status-dot status-dot-orange"></span>Configurable</td>
+                <td>-</td>
+                <td>-</td>
+                <td>-</td>
+                <td>Delivery cross-ref, fraud records</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+{# ── Reason Code Coverage ── #}
+<div class="int-section">
+    <div class="int-section-title">Reason Code Coverage</div>
+    <p style="font-size:12px; color:#9c8578; margin-bottom:10px;">Supported card networks: Visa, Mastercard, Discover, Diners Club, Amex</p>
+    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+        {% for rc in reason_codes %}
+        <span style="background:#f7efe9; padding:4px 12px; border-radius:4px; font-size:12px; font-weight:600; color:#6b584c;">{{ rc.label }}</span>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

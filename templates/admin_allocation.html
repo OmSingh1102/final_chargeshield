@@ -1,0 +1,263 @@
+{% extends "admin_base.html" %}
+{% block title %}Case Allocation - Team Lead Interface{% endblock %}
+
+{% block extra_css %}
+<style>
+    .alloc-bar {
+        display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+        background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 16px;
+        padding: 16px 18px; box-shadow: var(--shadow); margin-bottom: 18px;
+    }
+    .fg { display: flex; flex-direction: column; gap: 4px; }
+    .fg label { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-soft); }
+    .fg select, .fg input {
+        padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 9px;
+        background: var(--c-fffbf8, #fffbf8); font-family: inherit; font-size: 13px; color: var(--ink); min-width: 138px;
+    }
+    .fg.grow { flex: 1; min-width: 200px; }
+    .fg.grow input { width: 100%; }
+    .fg select:focus, .fg input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(244,97,26,.13); }
+
+    .push-box {
+        display: flex; gap: 10px; align-items: flex-end; margin-left: auto;
+        padding-left: 16px; border-left: 1px dashed var(--line-strong);
+    }
+    .push-btn {
+        padding: 9px 18px; border: none; border-radius: 9px; background: var(--brand);
+        color: var(--on-accent, #fff); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+        box-shadow: 0 3px 10px rgba(244,97,26,.26);
+    }
+    .push-btn:hover { background: var(--brand-dark); }
+    .push-btn:disabled { background: var(--c-e0d3c9, #e0d3c9); color: var(--c-9c8878, #9c8878); cursor: not-allowed; box-shadow: none; }
+    .clear-btn {
+        padding: 9px 16px; border: 1px solid var(--line-strong); border-radius: 9px;
+        background: var(--surface, #fff); font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--c-7a5c49, #7a5c49); cursor: pointer;
+    }
+
+    .sel-count { font-size: 12.5px; font-weight: 700; color: var(--brand-dark); white-space: nowrap; }
+    .table-wrap { background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+    .table-scroll { overflow-x: auto; }
+    table.tbl { min-width: 1020px; }
+    .row-count { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; padding: 13px 18px; }
+    .empty-msg { padding: 30px; text-align: center; color: var(--ink-soft); font-size: 13.5px; display: none; }
+    .agent-sel { padding: 5px 8px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--c-fffbf8, #fffbf8); font-family: inherit; font-size: 12px; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-head">
+    <h2>Case Allocation</h2>
+    <p>Distribute pending work across your agents. Tick rows and push them in bulk, or move one at a time.</p>
+    <span class="scope-note">{{ icon('users') }} {{ t.pending|length }} pending cases in your scope</span>
+</div>
+
+{# Ownership filter. An ingested book arrives owned (the ingest stamp spreads
+   it across the team), so a lead lands on Unassigned only while there is
+   something there to clear — otherwise on All. The counts come from
+   TeamConsole.for_lead's totals and are computed over these same pending
+   rows, so the three always add up. #}
+<div class="segmented" role="group" aria-label="Filter by ownership">
+    <button type="button" class="seg {% if t.totals.unassigned %}on{% endif %}" data-assigned="unassigned" onclick="setOwnership(this)">
+        Unassigned <span class="n">{{ t.totals.unassigned }}</span>
+    </button>
+    <button type="button" class="seg" data-assigned="assigned" onclick="setOwnership(this)">
+        Assigned <span class="n">{{ t.totals.assigned }}</span>
+    </button>
+    <button type="button" class="seg {% if not t.totals.unassigned %}on{% endif %}" data-assigned="" onclick="setOwnership(this)">
+        All <span class="n">{{ t.totals.pending }}</span>
+    </button>
+</div>
+
+<div class="alloc-bar">
+    <div class="fg grow">
+        <label for="f-search">Search</label>
+        <input type="text" id="f-search" placeholder="Case ID, customer, reason&hellip;" oninput="filterRows()">
+    </div>
+    <div class="fg">
+        <label for="f-agent">Currently with</label>
+        <select id="f-agent" onchange="filterRows()">
+            <option value="">All agents</option>
+            {% for a in t.filters.agents %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="fg">
+        <label for="f-bucket">Client bucket</label>
+        <select id="f-bucket" onchange="filterRows()">
+            <option value="">All buckets</option>
+            {% for b in t.filters.buckets %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+        </select>
+    </div>
+    <button class="clear-btn" onclick="clearFilters()">Clear</button>
+
+    <div class="push-box">
+        <span class="sel-count" id="sel-count">0 selected</span>
+        <div class="fg">
+            <label for="bulk-agent">Push to</label>
+            <select id="bulk-agent">
+                {% for a in agents %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+                <option value="">&mdash; Unassign &mdash;</option>
+            </select>
+        </div>
+        <button class="push-btn" id="push-btn" onclick="pushSelected()" disabled>Allocate</button>
+    </div>
+</div>
+
+<div class="table-wrap">
+    <div class="table-scroll">
+        <table class="tbl">
+            <thead>
+                <tr>
+                    <th style="width:34px;"><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
+                    <th>Case ID</th><th>Client Bucket</th><th>Network</th><th>Reason</th>
+                    <th style="text-align:right;">Amount</th><th>Due</th><th>Customer</th><th>Assigned To</th>
+                </tr>
+            </thead>
+            <tbody id="alloc-body">
+                {% for r in t.pending %}
+                <tr data-agent="{{ r.assigned_to }}" data-bucket="{{ r.bucket }}"
+                    data-assigned="{{ 'assigned' if r.assigned_to else 'unassigned' }}"
+                    data-search="{{ (r.case_id ~ ' ' ~ r.customer ~ ' ' ~ r.reason_code ~ ' ' ~ r.reason_title)|lower }}">
+                    <td><input type="checkbox" class="row-check" value="{{ r.case_id }}" onchange="updateSelection()"></td>
+                    {# The pencil matches the agent console's row idiom, and is
+                       added beside the id rather than as a column: this table
+                       already carries ten of them plus a checkbox and a select. #}
+                    <td><a class="cid" href="{{ url_for('case_detail', case_id=r.case_id) }}">{{ r.case_id }}</a>
+                        <a href="{{ url_for('counter_evidence', case_id=r.case_id) }}"
+                           title="Counter evidence" style="text-decoration:none;">&#9998;</a></td>
+                    <td>{{ r.bucket }}</td>
+                    <td>{{ r.network }}</td>
+                    <td>{{ reason_label(r.reason_code, r.network) }}</td>
+                    <td style="text-align:right;"><b>{{ r.currency }} {{ "%.2f"|format(r.amount) }}</b></td>
+                    <td>{{ r.due_date }}</td>
+                    <td>{{ r.customer }}</td>
+                    <td>
+                        <select class="agent-sel" data-case="{{ r.case_id }}" onchange="moveOne(this)">
+                            {# Blank first so an unowned case shows as such
+                               rather than silently displaying Agent1. #}
+                            <option value="" {% if not r.assigned_to %}selected{% endif %}>Unassigned</option>
+                            {% for a in agents %}
+                            <option value="{{ a }}" {% if a == r.assigned_to %}selected{% endif %}>{{ a }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="empty-msg" id="empty-msg">No cases match these filters.</div>
+    <div class="row-count" id="row-count">Showing {{ t.pending|length }} of {{ t.pending|length }} pending cases</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function visibleRows() {
+    return Array.from(document.querySelectorAll('#alloc-body tr')).filter(function (r) {
+        return !r.classList.contains('hidden');
+    });
+}
+
+/* Which segment of the ownership control is active: 'unassigned', 'assigned',
+   or '' for all. A lead lands on Unassigned when there is work only they can
+   clear, and on All when the ingest stamp left nothing unowned. */
+var ownership = {{ ('unassigned' if t.totals.unassigned else '')|tojson }};
+
+function setOwnership(btn) {
+    ownership = btn.dataset.assigned;
+    document.querySelectorAll('.segmented .seg').forEach(function (b) {
+        b.classList.toggle('on', b === btn);
+    });
+    filterRows();
+}
+
+function filterRows() {
+    var q = document.getElementById('f-search').value.trim().toLowerCase();
+    var agent = document.getElementById('f-agent').value;
+    var bucket = document.getElementById('f-bucket').value;
+
+    var rows = document.querySelectorAll('#alloc-body tr');
+    var shown = 0;
+    rows.forEach(function (row) {
+        var ok = (!ownership || row.dataset.assigned === ownership)
+              && (!agent || row.dataset.agent === agent)
+              && (!bucket || row.dataset.bucket === bucket)
+              && (!q || row.dataset.search.indexOf(q) !== -1);
+        row.classList.toggle('hidden', !ok);
+        if (!ok) { row.querySelector('.row-check').checked = false; }
+        if (ok) { shown++; }
+    });
+    document.getElementById('row-count').textContent =
+        'Showing ' + shown + ' of ' + rows.length + ' pending cases';
+    document.getElementById('empty-msg').style.display = shown === 0 ? 'block' : 'none';
+    updateSelection();
+}
+
+function clearFilters() {
+    ['f-search', 'f-agent', 'f-bucket'].forEach(function (id) {
+        document.getElementById(id).value = '';
+    });
+    filterRows();
+}
+
+document.addEventListener('DOMContentLoaded', filterRows);
+
+function toggleAll(box) {
+    visibleRows().forEach(function (r) { r.querySelector('.row-check').checked = box.checked; });
+    updateSelection();
+}
+
+function selectedIds() {
+    return visibleRows()
+        .filter(function (r) { return r.querySelector('.row-check').checked; })
+        .map(function (r) { return r.querySelector('.row-check').value; });
+}
+
+function updateSelection() {
+    var n = selectedIds().length;
+    document.getElementById('sel-count').textContent = n + ' selected';
+    document.getElementById('push-btn').disabled = n === 0;
+}
+
+async function allocate(ids, agent) {
+    var r = await fetch('{{ url_for("admin_allocate") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({case_ids: ids, agent: agent}),
+    });
+    var j = await r.json();
+    if (!j.ok) { throw new Error(j.error || 'Could not allocate'); }
+    return j;
+}
+
+async function pushSelected() {
+    var ids = selectedIds();
+    var agent = document.getElementById('bulk-agent').value;
+    if (!ids.length) { return; }
+    try {
+        var j = await allocate(ids, agent);
+        ids.forEach(function (id) {
+            var sel = document.querySelector('.agent-sel[data-case="' + id + '"]');
+            if (sel) { sel.value = agent; sel.closest('tr').dataset.agent = agent; }
+        });
+        document.getElementById('check-all').checked = false;
+        toggleAll(document.getElementById('check-all'));
+        toast(j.count + ' case' + (j.count === 1 ? '' : 's') + ' allocated to ' + agent + '.', true);
+    } catch (e) {
+        toast(e.message, false);
+    }
+}
+
+async function moveOne(sel) {
+    var previous = sel.closest('tr').dataset.agent;
+    try {
+        await allocate([sel.dataset.case], sel.value);
+        sel.closest('tr').dataset.agent = sel.value;
+        toast(sel.dataset.case + ' moved to ' + sel.value + '.', true);
+    } catch (e) {
+        sel.value = previous;
+        toast(e.message, false);
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+{% block title %}Chargeback - {{ case.case_id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.cb-page { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+@media (max-width: 900px) { .cb-page { grid-template-columns: 1fr; } }
+
+/* Header */
+.cb-header { background: var(--surface, #fff); border-radius: 10px; padding: 20px 24px; margin-bottom: 20px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+.cb-header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+.cb-amount { font-size: 28px; font-weight: 900; color: var(--ink-2, #2e1f17); }
+.cb-amount span { font-size: 14px; font-weight: 600; color: var(--ink-muted, #9c8578); margin-left: 4px; }
+.cb-badge { display: inline-block; padding: 4px 14px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+.cb-badge-need { background: #fff3e0; color: #e65100; }
+.cb-badge-open { background: var(--brand-tint, #ffeadd); color: var(--brand, #f4611a); }
+.cb-header-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.cb-meta { font-size: 12px; }
+.cb-meta-label { color: var(--ink-faint, #b0998a); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+.cb-meta-value { color: var(--ink-2, #2e1f17); font-weight: 700; margin-top: 2px; font-size: 13px; }
+
+/* Buttons */
+.cb-btn-row { display: flex; gap: 8px; }
+.cb-btn { padding: 8px 22px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; transition: .2s; }
+.cb-btn-accept { background: var(--surface, #fff); color: var(--ink-soft-2, #7a6558); border: 2px solid var(--line-2, #e8dad0); }
+.cb-btn-accept:hover { background: var(--surface-2, #f7efe9); }
+.cb-btn-counter { background: var(--c-4a382c, #4a382c); color: var(--on-accent, #fff); border: 2px solid var(--c-4a382c, #4a382c); }
+.cb-btn-counter:hover { background: var(--ink-2, #2e1f17); }
+/* Matches the locked chip and disabled decision select on the agent console. */
+.cb-btn:disabled { background: var(--c-f4f0ed, #f4f0ed); color: var(--c-b6a79c, #b6a79c);
+                   border-color: var(--c-f4f0ed, #f4f0ed); border-style: dashed; cursor: not-allowed; }
+.cb-btn:disabled:hover { background: var(--c-f4f0ed, #f4f0ed); }
+
+/* Sections */
+.cb-section { background: var(--surface, #fff); border-radius: 10px; padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+.cb-section-title { font-size: 14px; font-weight: 800; color: var(--ink-2, #2e1f17); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--surface-2, #f7efe9); }
+.cb-section-title .cb-edit-btns { float: right; }
+.cb-section-title .cb-edit-btn { padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid var(--line-2, #e8dad0); background: var(--surface, #fff); color: var(--ink-soft-2, #7a6558); margin-left: 4px; }
+.cb-section-title .cb-edit-btn:hover { background: var(--surface-2, #f7efe9); }
+.cb-section-title .cb-submit-btn { background: var(--c-4a382c, #4a382c); color: var(--on-accent, #fff); border-color: var(--c-4a382c, #4a382c); }
+.cb-field-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px 24px; }
+.cb-field { font-size: 12px; }
+.cb-field-label { color: var(--ink-faint, #b0998a); font-weight: 600; margin-bottom: 2px; }
+.cb-field-value { color: var(--ink-2, #2e1f17); font-weight: 700; font-size: 13px; word-break: break-all; }
+.cb-field-value.highlight { color: #e65100; background: #fff3e0; padding: 2px 8px; border-radius: 4px; display: inline-block; }
+.cb-field-value.mono { font-family: monospace; font-size: 12px; }
+
+/* Sidebar */
+.cb-sidebar-card { background: var(--surface, #fff); border-radius: 10px; padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+.cb-sidebar-title { font-size: 13px; font-weight: 800; color: var(--ink-2, #2e1f17); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+.cb-evidence-btn { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; background: var(--c-4a382c, #4a382c); color: var(--on-accent, #fff); border: none; }
+.cb-evidence-btn:hover { background: var(--ink-2, #2e1f17); }
+.cb-empty-state { text-align: center; padding: 30px 10px; color: var(--c-d0bcae, #d0bcae); }
+.cb-empty-icon { font-size: 36px; margin-bottom: 8px; }
+.cb-empty-text { font-size: 12px; }
+
+/* Card badge */
+.card-badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 800; color: var(--on-accent, #fff); }
+.card-visa { background: var(--c-1a237e, #1a237e); }
+.card-mastercard { background: var(--c-ff6f00, #ff6f00); }
+.card-amex { background: var(--c-0277bd, #0277bd); }
+.card-discover { background: #e65100; }
+.card-default { background: var(--c-6b584c, #6b584c); }
+
+/* Related CB table */
+.cb-rel-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cb-rel-table th { text-align: left; color: var(--ink-faint, #b0998a); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--surface-2, #f7efe9); font-size: 11px; }
+.cb-rel-table td { padding: 8px; border-bottom: 1px solid var(--c-f5f5f5, #f5f5f5); color: var(--ink-2, #2e1f17); }
+
+/* Modal */
+.cb-modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,.4); z-index: 9000; display: none; align-items: center; justify-content: center; }
+.cb-modal-overlay.open { display: flex; }
+.cb-modal { background: var(--surface, #fff); border-radius: 12px; padding: 32px; max-width: 420px; width: 90%; text-align: center; box-shadow: 0 8px 40px rgba(0,0,0,.2); }
+.cb-modal h3 { margin: 0 0 8px; font-size: 18px; color: var(--ink-2, #2e1f17); }
+.cb-modal p { font-size: 13px; color: var(--ink-muted, #9c8578); margin-bottom: 20px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:12px;">
+    {# cases_url, not home_url: "cases" means this role's own queue. It used to
+       point at the legacy /dashboard, which is in nobody's sidebar, so an agent
+       who came here from their own queue was thrown out of their console. #}
+    <a href="{{ cases_url }}" style="color:#7a6558; font-size:12px; text-decoration:none;">&larr; Back to Cases</a>
+    &nbsp;&middot;&nbsp;
+    <a href="{{ url_for('case_detail', case_id=case.case_id) }}" style="color:#7a6558; font-size:12px; text-decoration:none;">Case Detail</a>
+</div>
+
+{# ── Header ── #}
+<div class="cb-header">
+    <div class="cb-header-top">
+        <div>
+            <div class="cb-amount">{{ case.get('currency', 'USD') }} {{ "%.2f"|format(case.amount) }}
+                <span class="cb-badge cb-badge-need">{{ case.get('dispute_status', 'NEED_RESPONSE') }}</span>
+            </div>
+        </div>
+        <div class="cb-btn-row">
+            {# Disabled when the server would refuse anyway — another agent's
+               case, or one already filed. The server still re-checks; this only
+               stops the user discovering it after the confirm dialog. #}
+            <button class="cb-btn cb-btn-accept" onclick="acceptCase()"
+                    {% if write_block %}disabled title="{{ write_block }}"{% endif %}>Accept</button>
+            <button class="cb-btn cb-btn-counter" onclick="counterCase()">Counter</button>
+        </div>
+    </div>
+    <div class="cb-header-grid">
+        <div class="cb-meta">
+            <div class="cb-meta-label">Case Owner</div>
+            <div class="cb-meta-value">-</div>
+        </div>
+        <div class="cb-meta">
+            <div class="cb-meta-label">Latest Update</div>
+            <div class="cb-meta-value">{{ fetched_at }}</div>
+        </div>
+        <div class="cb-meta">
+            <div class="cb-meta-label">Dispute Date</div>
+            <div class="cb-meta-value">{{ case.get('dispute_creation_date', case.get('submission_date', '-')) or '-' }}</div>
+        </div>
+        <div class="cb-meta">
+            {# Two different numbers, and this used to conflate them. The
+               sheet's WinRate is a *fraction* (0.0003-0.0120) and it is the
+               merchant's portfolio dispute rate, not this case's odds —
+               formatted with "%.2f" and a percent sign it printed "0.00%" on
+               every case in the book. It is also truthy on every row, so it
+               always beat the classifier's real 0-100 score: a case routed to
+               Auto-Represent at 82% confidence displayed 0.01%. #}
+            <div class="cb-meta-label">Win Probability</div>
+            <div class="cb-meta-value">{{ case.get('win_probability', '-') }}%</div>
+        </div>
+        {% if case.get('win_rate') %}
+        <div class="cb-meta">
+            <div class="cb-meta-label">Portfolio Dispute Rate</div>
+            <div class="cb-meta-value">{{ "%.3f"|format(case.win_rate * 100) }}%</div>
+        </div>
+        {% endif %}
+        <div class="cb-meta">
+            <div class="cb-meta-label">Payment Method</div>
+            <div class="cb-meta-value">
+                {% set ct = case.payment_method|upper %}
+                <span class="card-badge {% if 'VISA' in ct %}card-visa{% elif 'MASTER' in ct %}card-mastercard{% elif 'AMEX' in ct %}card-amex{% elif 'DISCOVER' in ct %}card-discover{% else %}card-default{% endif %}">{{ case.payment_method|upper }}</span>
+                ****{{ case.card_last_four }}
+            </div>
+        </div>
+        <div class="cb-meta">
+            {# Labelled "Priority Score" for a long time, but the figure is and
+               always was the model's confidence in its routing call. #}
+            <div class="cb-meta-label">ML Confidence</div>
+            <div class="cb-meta-value">{% if ml %}{{ ml.confidence }}%{% else %}N/A{% endif %}</div>
+        </div>
+        <div class="cb-meta">
+            <div class="cb-meta-label">First CB Receipt Date</div>
+            <div class="cb-meta-value">{{ case.get('dispute_creation_date', '-') or '-' }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="cb-page">
+    {# ── Left Content ── #}
+    <div>
+        {# Dispute Details #}
+        <div class="cb-section">
+            <div class="cb-section-title">
+                Dispute Details
+                <span class="cb-edit-btns">
+                    <button class="cb-edit-btn">Edit</button>
+                    <button class="cb-edit-btn cb-submit-btn">Submit</button>
+                </span>
+            </div>
+            <div class="cb-field-grid">
+                <div class="cb-field">
+                    <div class="cb-field-label">Channel</div>
+                    <div class="cb-field-value">{{ case.processor }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Reason Category</div>
+                    <div class="cb-field-value highlight">{{ case.get('chargeback_category', case.scenario) }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Reopen Reason Category</div>
+                    <div class="cb-field-value">N/A</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Fraud Type</div>
+                    <div class="cb-field-value">{{ 'Unavailable' if 'fraud' in (case.get('chargeback_category','')|lower) else '-' }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Dispute Reason Code</div>
+                    <div class="cb-field-value">{{ reason_label(case.reason_code, case.payment_method) }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Dispute Reason Description</div>
+                    <div class="cb-field-value">{{ case.get('reason_description', case.scenario) }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Stage</div>
+                    <div class="cb-field-value">{{ case.get('dispute_stage', 'CB') }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Status</div>
+                    <div class="cb-field-value">{{ case.get('dispute_status', 'NEED_RESPONSE') }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Dispute Amount</div>
+                    <div class="cb-field-value">{{ "%.2f"|format(case.amount) }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Dispute Currency</div>
+                    <div class="cb-field-value">{{ case.get('currency', 'USD') }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Merchant Decision</div>
+                    <div class="cb-field-value highlight">{% if ml and ml.routing == 'accept_refund' %}Accept{% else %}Counter{% endif %}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Liability</div>
+                    <div class="cb-field-value highlight">{{ 'merchant_liability' if not case.get('liability_shift') else 'issuer_liability' }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Dispute ID</div>
+                    <div class="cb-field-value mono">{{ case.get('dispute_psp_ref', case.case_id) }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Transaction ID</div>
+                    <div class="cb-field-value mono">{{ case.get('payment_psp_ref', case.get('order_id', '-')) }}</div>
+                </div>
+            </div>
+        </div>
+
+        {# Payment Details #}
+        <div class="cb-section">
+            <div class="cb-section-title">Payment Details</div>
+            <div class="cb-field-grid">
+                <div class="cb-field">
+                    <div class="cb-field-label">Merchant Name</div>
+                    <div class="cb-field-value">{{ case.get('merchant') or 'Merchant' }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Merchant ID</div>
+                    <div class="cb-field-value mono">{{ case.get('merchant_account', '-') or '-' }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Transaction Amount</div>
+                    <div class="cb-field-value">{{ "%.2f"|format(case.get('amount_authorized', case.amount)) }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Transaction Currency</div>
+                    <div class="cb-field-value">{{ case.get('currency', 'USD') }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Transaction Time</div>
+                    <div class="cb-field-value">{{ case.get('transaction_date', '-') }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Authorization Code</div>
+                    <div class="cb-field-value mono">{{ case.get('auth_code', '-') or '-' }}</div>
+                </div>
+            </div>
+        </div>
+
+        {# 3DS Info #}
+        <div class="cb-section">
+            <div class="cb-section-title">3DS Info</div>
+            <div class="cb-field-grid">
+                <div class="cb-field">
+                    <div class="cb-field-label">If triggered 3DS</div>
+                    <div class="cb-field-value">{{ 'true' if case.get('threed_secure','') == 'Authenticated' else 'false' }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">ECI value</div>
+                    <div class="cb-field-value">{{ '05' if case.get('threed_secure','') == 'Authenticated' else '' }}</div>
+                </div>
+            </div>
+        </div>
+
+        {# Refund Info #}
+        <div class="cb-section">
+            <div class="cb-section-title">Refund Info</div>
+            <div class="cb-field-grid">
+                <div class="cb-field">
+                    <div class="cb-field-label">Is refunded</div>
+                    <div class="cb-field-value">{{ 'true' if case.get('amount_settled', 0) > 0 else 'false' }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Is Partial</div>
+                    <div class="cb-field-value">{{ 'true' if case.get('amount_settled', 0) > 0 and case.get('amount_settled', 0) != case.amount else 'false' }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Refunded Amount</div>
+                    <div class="cb-field-value highlight">{{ "%.2f"|format(case.get('amount_settled', 0)) }} {{ case.get('currency', 'USD') }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Refund completed date</div>
+                    <div class="cb-field-value">{{ case.get('submission_date', '-') or '-' }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Refund Type</div>
+                    <div class="cb-field-value">{{ case.get('refund_type', 'N/A') or 'N/A' }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">If Business Refund</div>
+                    <div class="cb-field-value">N/A</div>
+                </div>
+            </div>
+        </div>
+
+        {# Payment Method #}
+        <div class="cb-section">
+            <div class="cb-section-title">Payment Method</div>
+            <div class="cb-field-grid">
+                <div class="cb-field">
+                    <div class="cb-field-label">Card Type</div>
+                    <div class="cb-field-value">{{ case.payment_method }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Issuer</div>
+                    <div class="cb-field-value">{{ case.get('issuer_name', '-') or '-' }}</div>
+                </div>
+                <div class="cb-field">
+                    <div class="cb-field-label">Issuer Country</div>
+                    <div class="cb-field-value">{{ case.get('issuer_country', 'US') }}</div>
+                </div>
+            </div>
+        </div>
+
+        {# Was a "Related Chargeback" table: one hardcoded row echoing this very case
+   back at itself, under a "User ID" header sitting over the PSP reference. It
+   never queried anything. Replaced with the real pane, shared with the case
+   detail page so the two cannot drift. #}
+{% include "_customer_history.html" %}
+    </div>
+
+    {# ── Right Sidebar ── #}
+    <div>
+        {# File Upload #}
+        <div class="cb-sidebar-card">
+            <div class="cb-sidebar-title">
+                File Name
+            </div>
+            <div class="cb-empty-state">
+                <div class="cb-empty-icon">&#128196;</div>
+                <div class="cb-empty-text">No data</div>
+            </div>
+        </div>
+
+        {# Historical Material #}
+        <div class="cb-sidebar-card">
+            <div class="cb-sidebar-title">
+                Historical Material
+                <button class="cb-evidence-btn" onclick="document.getElementById('evidence-upload').click()">Submit evidence</button>
+                <input type="file" id="evidence-upload" style="display:none;" onchange="evidenceUploaded(this)">
+            </div>
+            <div id="evidence-area">
+                <div class="cb-empty-state">
+                    <div class="cb-empty-icon">&#128196;</div>
+                    <div class="cb-empty-text">No data</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Accept Modal ── #}
+<div class="cb-modal-overlay" id="accept-modal">
+    <div class="cb-modal">
+        <h3>Accept Chargeback</h3>
+        <p>Are you sure you want to accept this chargeback for <strong>{{ case.get('currency','USD') }} {{ "%.2f"|format(case.amount) }}</strong>? This action cannot be undone. The disputed amount will be recorded as a loss.</p>
+        <div style="display:flex; gap:8px; justify-content:center;">
+            <button class="cb-btn cb-btn-accept" onclick="document.getElementById('accept-modal').classList.remove('open')">Cancel</button>
+            <button class="cb-btn cb-btn-counter" id="confirm-accept-btn" onclick="confirmAccept()">Confirm Accept</button>
+        </div>
+    </div>
+</div>
+
+{# ── Accepted Confirmation Modal ── #}
+<div class="cb-modal-overlay" id="accepted-modal">
+    <div class="cb-modal">
+        <div style="font-size:48px; margin-bottom:12px;">&#9989;</div>
+        <h3>Chargeback Accepted</h3>
+        <p>Case {{ case.case_id }} has been accepted. The loss of {{ case.get('currency','USD') }} {{ "%.2f"|format(case.amount) }} has been recorded.</p>
+        {# Was hardcoded '/', which only worked because portal() redirects a
+           signed-in user onward — and so dropped the user on the sign-in
+           chooser the moment a session lapsed, right after recording an accept. #}
+        <button class="cb-btn cb-btn-counter" onclick="window.location.href='{{ home_url }}'">Go to Dashboard</button>
+    </div>
+</div>
+
+{# ── Accept Refused Modal ──
+   The server decides who may accept a case, and refuses another agent's case or
+   one already filed. Without this branch confirmAccept fired the success modal
+   on a 403 and told the user a loss had been recorded when none had. #}
+<div class="cb-modal-overlay" id="accept-failed-modal">
+    <div class="cb-modal">
+        <div style="font-size:48px; margin-bottom:12px;">&#9888;</div>
+        <h3>Not Accepted</h3>
+        <p id="accept-failed-msg">This chargeback could not be accepted.</p>
+        <button class="cb-btn cb-btn-accept"
+                onclick="document.getElementById('accept-failed-modal').classList.remove('open')">Close</button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function acceptCase() {
+    document.getElementById('accept-modal').classList.add('open');
+}
+
+function cbModal(id, open) {
+    document.getElementById(id).classList[open ? 'add' : 'remove']('open');
+}
+
+function acceptFailed(message) {
+    document.getElementById('accept-failed-msg').textContent = message;
+    cbModal('accept-failed-modal', true);
+}
+
+// The response decides which modal opens. This used to show "Chargeback
+// Accepted" unconditionally, so a refusal — another agent's case, or one
+// already filed — reported a loss that was never recorded.
+function confirmAccept() {
+    var btn = document.getElementById('confirm-accept-btn');
+    btn.disabled = true;
+    btn.textContent = 'Accepting…';
+    fetch('/case/{{ case.case_id }}/accept', { method: 'POST' })
+        .then(function(r) {
+            return r.json()
+                .catch(function() { return {}; })
+                .then(function(d) { return { ok: r.ok, body: d }; });
+        })
+        .then(function(res) {
+            cbModal('accept-modal', false);
+            if (res.ok && res.body.status === 'ok') {
+                cbModal('accepted-modal', true);
+            } else {
+                acceptFailed(res.body.error || 'This chargeback could not be accepted.');
+            }
+        })
+        .catch(function() {
+            cbModal('accept-modal', false);
+            acceptFailed('The request could not be completed. Check your connection and try again.');
+        })
+        .then(function() {
+            btn.disabled = false;
+            btn.textContent = 'Confirm Accept';
+        });
+}
+
+function counterCase() {
+    window.location.href = '{{ url_for('counter_evidence', case_id=case.case_id) }}';
+}
+
+function evidenceUploaded(input) {
+    if (input.files && input.files.length > 0) {
+        var area = document.getElementById('evidence-area');
+        var name = input.files[0].name;
+        area.innerHTML = '<div style="padding:10px; background:#f5f5f5; border-radius:6px; font-size:12px; font-weight:600; color:#2e1f17;">&#128196; ' + name + ' <span style="color:#2e7d32; margin-left:8px;">Uploaded</span></div>';
+    }
+}
+</script>
+{% endblock %}

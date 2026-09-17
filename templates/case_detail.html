@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+{% block title %}{{ case.case_id }} - Case Detail{% endblock %}
+
+{% block content %}
+{# The raw sheet row behind this case — empty dict for seeded cases that have
+   none. Same idiom client_case.html already uses. #}
+{% set src = case.get('source') or {} %}
+{% set cur = case.currency or 'USD' %}
+<div class="breadcrumb">
+    <a href="{{ home_url }}">&#8962; Home</a> &gt; Case Detail &gt; {{ case.case_id }}
+</div>
+
+<div class="case-header">
+    <div>
+        <h2>Chargeback Case: {{ case.case_id }}</h2>
+        <p style="color:var(--muted-foreground); margin-top:4px;">{{ case.scenario }} | Reason Code {{ case.reason_code }}</p>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+        <span class="status-badge {{ case.outcome|lower if case.outcome else 'pending' }}" style="font-size:14px; padding:8px 20px;">{{ case.outcome }}</span>
+    </div>
+</div>
+
+{# ── Action Status Banner ──
+   Reads as a routing decision, not as case history. The status badge above is
+   the recorded outcome; this line is what the pipeline decided to do, and the
+   two are allowed to differ. Stating it in the past tense made a Pending case
+   announce "Chargeback accepted" and look like a contradiction. #}
+{% if ml %}
+{#- Styling moved to .ai-reco in style.css. It was written inline on the element
+    with no class at all, which put three colour pairs in the template and left
+    the banner unreachable by the dark theme. -#}
+<div class="ai-reco {% if ml.routing == 'auto_represent' %}ok{% elif ml.routing == 'hitl_review' %}warn{% else %}neutral{% endif %}">
+    {% if ml.overridden %}
+        Analyst decision: {{ ml.routing_label }} &mdash; {{ ml.routing_desc }}
+        (AI had recommended {{ ml.ai_routing_label }} at {{ ml.confidence }}% confidence)
+    {% elif ml.routing == 'auto_represent' %}
+        {#- Three states, three tellings. "Filed automatically" only when the
+            system actually stamped the filing (provenance strip below carries
+            the basis); a sheet-decided or agent-contested case was submitted
+            some other way; anything else is generated but not yet filed. -#}
+        {% if case.auto_submitted %}
+        AI recommendation: Auto-Represent &mdash; rebuttal auto-generated and filed with the
+        network on {{ case.auto_submitted.at }} &mdash; AI Confidence: {{ ml.confidence }}%
+        {% elif case.submission_status == 'Submitted' %}
+        AI recommendation: Auto-Represent &mdash; rebuttal submitted to the network
+        &mdash; AI Confidence: {{ ml.confidence }}%
+        {% else %}
+        AI recommendation: Auto-Represent &mdash; rebuttal auto-generated, queued for filing
+        &mdash; AI Confidence: {{ ml.confidence }}%
+        {% endif %}
+    {% elif ml.routing == 'hitl_review' %}
+        AI recommendation: Human Review &mdash; rebuttal generated, awaiting analyst sign-off before
+        submission &mdash; AI Confidence: {{ ml.confidence }}%
+    {% else %}
+        AI recommendation: Accept &mdash; low win probability, no rebuttal generated
+        {%- if (case.case_status or 'Decision Pending') == 'Decision Pending' %},
+        awaiting analyst confirmation{% endif %}
+        &mdash; AI Confidence: {{ ml.confidence }}%
+    {% endif %}
+</div>
+{% endif %}
+
+{# The Chargeback link is offered on every case, deliberately.
+
+   It was once hidden when the engine routed a case to accept_refund, on the
+   reasoning that we build no dispute record for a case we are not contesting.
+   That reasoning does not survive contact with the workflow: the only Accept
+   button in the app is on the page this link opens, so hiding it withheld the
+   action on exactly the cases whose banner says "AI recommendation: Accept".
+   It also opens the dispute record itself — reason code, stage, amounts — which
+   exists whether or not we fought, and is what anyone reviewing the decision
+   needs to see.
+
+   The triage is already stated twice on this page, by the banner above and the
+   AI Validation panel below. The link's absence was a third, weaker telling
+   that cost an action. #}
+<div class="action-row">
+    <a href="{{ url_for('processor_view', case_id=case.case_id) }}" class="action-btn primary">View in Processor Portal</a>
+    <a href="{{ url_for('chargeback_detail', case_id=case.case_id) }}" class="action-btn">Chargeback</a>
+    {# Counter Evidence used to sit here. The packet builder is still reachable
+       from the Chargeback page's own Counter button, from the agent and admin
+       queues, from the processor view and from the review packet, so removing
+       it here closes no route to it. #}
+    <a href="{{ url_for('gateway_receipt', case_id=case.case_id) }}" class="action-btn">Gateway Receipt</a>
+    {# Recording a ruling is a lead's job, so agents never see the control.
+       The route enforces this too — this only keeps the button off a page
+       where pressing it would fail. #}
+    {% if session.get('role') in ('admin', 'manager') %}
+    <button type="button" class="action-btn" onclick="decModal('dec-modal', true)">
+        {{ 'Update issuer decision' if case.issuer_decision else 'Record issuer decision' }}
+    </button>
+    {% endif %}
+</div>
+
+{% if case.auto_submitted %}
+{# Filing provenance, same pattern as the issuer-decision strip below and
+   placed first because the filing precedes the ruling. A submission with no
+   date or basis is indistinguishable from one the UI invented — which is
+   what auto-filing exists to fix. #}
+<div class="dec-recorded">
+    <span class="dec-pill filed">Representment filed automatically</span>
+    <span class="dec-meta">
+        filed {{ case.auto_submitted.at }} &middot;
+        evidence completeness {{ case.auto_submitted.completeness }}% &middot;
+        model confidence {{ case.auto_submitted.confidence }}%
+    </span>
+</div>
+{% endif %}
+
+{% if case.agent_action == 'Not Fought' %}
+{# Concession provenance — the third strip in the set. A filing and a ruling
+   both say who and when; money conceded in-app deserves no less. Sheet-loaded
+   Not Fought cases carry no agent_action, so this only shows for a concession
+   someone actually made here. #}
+<div class="dec-recorded">
+    <span class="dec-pill conceded">Chargeback conceded</span>
+    <span class="dec-meta">
+        conceded{% if case.agent_action_by %} by {{ case.agent_action_by }}{% endif %}
+        on {{ case.agent_action_at }}
+        {%- if ml %} &middot; engine had scored this case {{ ml.confidence }}%
+        ({{ ml.ai_routing_label or ml.routing_label }}){% endif %}
+    </span>
+</div>
+{% endif %}
+
+{% if case.issuer_decision %}
+{# Who recorded what, and when. A ruling that appears with no provenance is
+   indistinguishable from one the system invented — which is the whole thing
+   this feature exists to avoid. #}
+<div class="dec-recorded">
+    <span class="dec-pill {{ 'won' if case.issuer_decision.decision == 'Won' else 'lost' }}">
+        Issuer ruled: {{ case.issuer_decision.decision }}</span>
+    <span class="dec-meta">
+        ruling dated {{ case.issuer_decision.ruling_date }} &middot;
+        recorded by {{ case.issuer_decision.recorded_by }} on {{ case.issuer_decision.at }}
+        {%- if case.issuer_decision.reference %} &middot; ref {{ case.issuer_decision.reference }}{% endif %}
+    </span>
+</div>
+{% endif %}
+
+{# What this dispute type requires before it can be represented — the evidence
+   matrix applied to this case, with the live credential state of the source
+   systems. Sits above the source cards: requirements first, then the data. #}
+{% include "_case_evidence_checklist.html" %}
+
+{# The five source-system cards, shared with the defense review packet. #}
+{% include "_db_source_cards.html" %}
+
+{# Directly under the Customer / Issuer card: the card above identifies this
+   customer, this says what else the book holds on them. Reading one straight
+   into the other is the point, which it lost sitting at the foot of the page
+   behind the AI verdict and the dispute timeline. #}
+{% include "_customer_history.html" %}
+
+<!-- ═══ AI Validation Result ═══ -->
+{% set risk = 'green' if ml.confidence >= 70 else ('orange' if ml.confidence >= 40 else 'red') %}
+{% set risk_label = 'LOW RISK' if ml.confidence >= 70 else ('MEDIUM RISK' if ml.confidence >= 40 else 'HIGH RISK') %}
+<div class="ai-verdict">
+{# This card reports what the model scored, so it keeps the score-derived label
+   even when an analyst has overridden the routing. The banner up top carries
+   the human decision; relabelling this one too would leave a green "LOW RISK"
+   panel headed "Accept / Refund". #}
+    <div class="ai-verdict-hdr {{ risk }}">&#129302; AI Validation Engine &mdash; {{ ml.ai_routing_label or ml.routing_label }}</div>
+    <div class="ai-verdict-body">
+        <div class="ai-conf-row">
+            <span class="ai-conf-score" style="color:{% if ml.confidence >= 70 %}#2e7d32{% elif ml.confidence >= 40 %}#e65100{% else %}#c62828{% endif %};">{{ ml.confidence }}%</span>
+            <div class="ai-conf-bar"><div class="ai-conf-fill {% if ml.confidence >= 70 %}g{% elif ml.confidence >= 40 %}o{% else %}r{% endif %}" style="width:{{ ml.confidence }}%;"></div></div>
+            <span class="ai-route-label" style="background:{% if ml.confidence >= 70 %}#e8f5e9;color:#2e7d32{% elif ml.confidence >= 40 %}#fff3e0;color:#e65100{% else %}#fce4ec;color:#c62828{% endif %};">{{ ml.ai_routing_label or ml.routing_label }}</span>
+        </div>
+        <div class="ai-sigs">
+            <div class="ai-sig-group">
+                <h4 style="color:#2e7d32;">&#9989; Contributing Signals</h4>
+                {% for name, pts in ml.contributing_factors %}
+                <div class="ai-sig-item">&#9679; {{ name|replace('_',' ')|title }} <span class="ai-sig-pts">{{ pts|int }}pts</span></div>
+                {% endfor %}
+                {% if not ml.contributing_factors %}<div class="ai-sig-item" style="color:#888;">No strong signals</div>{% endif %}
+            </div>
+            <div class="ai-sig-group">
+                <h4 style="color:#c62828;">&#9888; Missing Signals</h4>
+                {% for name in ml.missing_signals %}
+                <div class="ai-sig-item" style="color:#888;">&#9675; {{ name|replace('_',' ')|title }}</div>
+                {% endfor %}
+                {% if not ml.missing_signals %}<div class="ai-sig-item" style="color:#2e7d32;">All signals present</div>{% endif %}
+            </div>
+        </div>
+        <div class="ai-verdict-msg" style="background:{% if ml.confidence >= 70 %}#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7{% elif ml.confidence >= 40 %}#fff3e0;color:#e65100;border:1px solid #ffcc80{% else %}#fce4ec;color:#c62828;border:1px solid #ef9a9a{% endif %};">
+            {% if ml.confidence >= 70 %}&#9989; <strong>{{ risk_label }}</strong> &mdash; Auto-represent recommended. System will generate and submit evidence packet automatically.
+            {% elif ml.confidence >= 40 %}&#9888; <strong>{{ risk_label }}</strong> &mdash; Routed to human analyst for evidence review and decision.
+            {% else %}&#10060; <strong>{{ risk_label }}</strong> &mdash; Low win probability. Recommend accepting chargeback to avoid fees.
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Issuer Comments -->
+{% if case.issuer_comments %}
+<div class="detail-card" style="margin-top:4px;">
+    <h3>&#128172; Issuer Comments</h3>
+    <div class="issuer-comment-box" style="margin:0;">
+        <strong>liabilityNotAcceptedFully:</strong> {{ case.issuer_comments }}
+    </div>
+</div>
+{% endif %}
+
+<!-- Dispute History Timeline -->
+<div class="detail-card" style="margin-top:16px;">
+    <h3>&#128197; Dispute History</h3>
+    <div class="timeline">
+        {% for event in case.dispute_history %}
+        <div class="timeline-item">
+            <div class="event-name">{{ event.event }}</div>
+            <div class="event-date">{{ event.date }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{# ── Record issuer decision ────────────────────────────────────────────────
+   The evidence panel is the point of this dialog. Whoever records a ruling
+   sees what the case was actually carrying, so a loss can be read against its
+   own weaknesses. Nothing here pre-selects Won or Lost, and the confidence
+   score is shown but never acted on: the issuer decides, we transcribe. #}
+{% if session.get('role') in ('admin', 'manager') %}
+{# `with context` is required, not optional: importing this partial executes its
+   top-level {% set src = case... %}, which without context raises
+   'case' is undefined and 500s the whole page. #}
+{% from "_db_source_cards.html" import verdict with context %}
+<div class="dec-overlay" id="dec-modal">
+    <div class="dec-modal">
+        <h3>Record issuer decision</h3>
+        <p>Enter the ruling the network sent back for case {{ case.case_id }}.
+           This records what the issuer decided &mdash; it does not decide anything.</p>
+
+        <div class="dec-evidence">
+            <div class="dec-ev-head">What this case carries</div>
+            <div class="dec-ev-grid">
+                <span class="l">3D Secure</span>
+                <span class="v {{ verdict(case.threed_secure)|trim }}">{{ case.threed_secure or '—' }}</span>
+                <span class="l">Liability shift</span>
+                <span class="v {{ 'pass' if case.liability_shift else 'fail' }}">{{ 'Yes - issuer liable' if case.liability_shift else 'No - merchant liable' }}</span>
+                <span class="l">AVS</span>
+                <span class="v {{ verdict(case.avs_response)|trim }}">{{ case.avs_response or '—' }}</span>
+                <span class="l">CVV</span>
+                <span class="v {{ verdict(case.cvv_response)|trim }}">{{ case.cvv_response or '—' }}</span>
+                <span class="l">Delivery</span>
+                <span class="v {{ verdict(order.fulfillment_status)|trim }}">{{ order.fulfillment_status or '—' }}</span>
+                <span class="l">Proof of delivery</span>
+                {%- set pod = src.get('ProofOfDelivery') or '' %}
+                <span class="v {{ 'fail' if pod|lower == 'no' else ('pass' if pod else 'warn') }}">{{ pod or '—' }}</span>
+            </div>
+            {% if ml %}
+            <div class="dec-ev-score">Engine scored this case
+                <b>{{ ml.confidence }}/100</b> before filing &mdash; context only, not a prediction of the ruling.</div>
+            {% endif %}
+        </div>
+
+        <div class="dec-field">
+            <label for="dec-date">Ruling date</label>
+            <input type="date" id="dec-date" value="{{ case.issuer_decision.ruling_date if case.issuer_decision else '' }}">
+        </div>
+        <div class="dec-field">
+            <label for="dec-ref">Network reference <span>(optional)</span></label>
+            <input type="text" id="dec-ref" maxlength="120" placeholder="e.g. case ref from the issuer letter"
+                   value="{{ case.issuer_decision.reference if case.issuer_decision else '' }}">
+        </div>
+        <div class="dec-err" id="dec-err"></div>
+
+        <div class="dec-actions">
+            <button type="button" class="dec-btn ghost" onclick="decModal('dec-modal', false)">Cancel</button>
+            {% if case.issuer_decision %}
+            <button type="button" class="dec-btn clear" onclick="recordDecision('clear')">Clear decision</button>
+            {% endif %}
+            <button type="button" class="dec-btn lost" onclick="recordDecision('Lost')">Issuer ruled Lost</button>
+            <button type="button" class="dec-btn won" onclick="recordDecision('Won')">Issuer ruled Won</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Provenance line under the action row */
+    .dec-recorded { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        margin: 12px 0 0; padding: 10px 14px; border-radius: 10px;
+        background: var(--c-faf8f6, #faf8f6); border: 1px solid var(--line, #f2e4da); }
+    .dec-pill { font-size: 12px; font-weight: 800; padding: 3px 12px; border-radius: 999px; }
+    .dec-pill.won { background: #e7f6ec; color: #2e7d32; }
+    .dec-pill.lost { background: #ffe9e6; color: #c62828; }
+    /* Same green family as .won — the pill text disambiguates filing from ruling. */
+    .dec-pill.filed { background: #e7f6ec; color: #2e7d32; }
+    /* Muted, not red: a concession is a deliberate decision, not a defeat. */
+    .dec-pill.conceded { background: var(--surface-2, #f7efe9); color: var(--ink-soft-2, #7a6558); }
+    .dec-meta { font-size: 12px; color: var(--ink-soft, #6d6259); }
+
+    /* Dialog — same shape as the chargeback page's confirm modal */
+    .dec-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 9000;
+        display: none; align-items: center; justify-content: center; }
+    .dec-overlay.open { display: flex; }
+    .dec-modal { background: var(--surface, #fff); border-radius: 12px; padding: 26px 28px;
+        max-width: 540px; width: 92%; max-height: 90vh; overflow-y: auto;
+        box-shadow: 0 8px 40px rgba(0,0,0,.2); }
+    .dec-modal h3 { margin: 0 0 6px; font-size: 18px; color: var(--ink-2, #2e1f17); }
+    .dec-modal > p { font-size: 12.5px; color: var(--ink-muted, #9c8578); margin: 0 0 16px; line-height: 1.6; }
+
+    .dec-evidence { border: 1px solid var(--line, #f2e4da); border-radius: 10px;
+        padding: 12px 14px; margin-bottom: 16px; background: var(--c-faf8f6, #faf8f6); }
+    .dec-ev-head { font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .4px; color: var(--ink-soft, #6d6259); margin-bottom: 9px; }
+    .dec-ev-grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 14px; align-items: baseline; }
+    .dec-ev-grid .l { font-size: 11.5px; color: var(--ink-soft, #6d6259); }
+    .dec-ev-grid .v { font-size: 12px; font-weight: 700; }
+    .dec-ev-grid .v.pass { color: #2e7d32; }
+    .dec-ev-grid .v.warn { color: #e65100; }
+    .dec-ev-grid .v.fail { color: #c62828; }
+    .dec-ev-score { margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--line, #f2e4da);
+        font-size: 11.5px; color: var(--ink-soft, #6d6259); line-height: 1.55; }
+
+    .dec-field { margin-bottom: 12px; }
+    .dec-field label { display: block; font-size: 11.5px; font-weight: 700;
+        color: var(--ink-soft, #6d6259); margin-bottom: 4px; }
+    .dec-field label span { font-weight: 500; opacity: .75; }
+    .dec-field input { width: 100%; padding: 8px 11px; font-size: 13px; font-family: inherit;
+        border: 1px solid var(--line, #f2e4da); border-radius: 8px; background: #fff; }
+    .dec-err { display: none; font-size: 12px; color: #c62828; margin: 4px 0 10px; }
+    .dec-err.show { display: block; }
+
+    .dec-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 18px; }
+    .dec-btn { padding: 8px 15px; font-size: 12.5px; font-weight: 700; font-family: inherit;
+        border-radius: 8px; border: 1px solid transparent; cursor: pointer; }
+    .dec-btn:disabled { opacity: .55; cursor: default; }
+    .dec-btn.ghost { background: #fff; border-color: var(--line, #f2e4da); color: var(--ink-soft, #6d6259); }
+    .dec-btn.clear { background: #fff; border-color: var(--line, #f2e4da); color: #c62828; }
+    .dec-btn.won { background: #2e7d32; color: #fff; }
+    .dec-btn.lost { background: #c62828; color: #fff; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function decModal(id, open) {
+    document.getElementById(id).classList.toggle('open', open);
+}
+
+// Follows the response contract every other action endpoint here uses:
+// {ok: true, ...} or {ok: false, error: "..."}, with the error shown verbatim.
+// On success the page reloads rather than patching the DOM — the status badge,
+// the timeline and the AI panel all derive from this case, and a reload is the
+// only way to be sure they agree.
+function recordDecision(decision) {
+    var err = document.getElementById('dec-err');
+    var buttons = document.querySelectorAll('.dec-actions .dec-btn');
+    var date = document.getElementById('dec-date').value;
+    err.classList.remove('show');
+
+    if (decision !== 'clear' && !date) {
+        err.textContent = 'Give the date the issuer ruled.';
+        err.classList.add('show');
+        return;
+    }
+    buttons.forEach(function (b) { b.disabled = true; });
+
+    fetch('{{ url_for("record_issuer_decision", case_id=case.case_id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            decision: decision,
+            ruling_date: date,
+            reference: document.getElementById('dec-ref').value
+        })
+    }).then(function (r) {
+        return r.json().catch(function () { return {}; })
+                .then(function (d) { return {ok: r.ok, body: d}; });
+    }).then(function (res) {
+        if (res.ok && res.body.ok) { window.location.reload(); return; }
+        err.textContent = res.body.error || 'The decision could not be recorded.';
+        err.classList.add('show');
+        buttons.forEach(function (b) { b.disabled = false; });
+    }).catch(function () {
+        err.textContent = 'The request could not be completed. Check the connection and try again.';
+        err.classList.add('show');
+        buttons.forEach(function (b) { b.disabled = false; });
+    });
+}
+</script>
+{% endblock %}

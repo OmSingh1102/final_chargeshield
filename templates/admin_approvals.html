@@ -1,0 +1,236 @@
+{% extends "admin_base.html" %}
+{% block title %}Rework Approvals - Team Lead Interface{% endblock %}
+
+{% block extra_css %}
+<style>
+    .flow {
+        display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+        background: var(--brand-wash, #fff7f2); border: 1px dashed var(--line-strong); border-radius: 12px;
+        padding: 13px 18px; margin-bottom: 20px; font-size: 12.5px; color: var(--ink-soft-2, #7a6558);
+    }
+    .flow b { color: var(--ink); }
+    .flow .arrow { color: var(--brand); font-weight: 800; }
+
+    .filter-bar {
+        display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+        background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 16px;
+        padding: 16px 18px; box-shadow: var(--shadow); margin-bottom: 18px;
+    }
+    .fg { display: flex; flex-direction: column; gap: 4px; }
+    .fg label { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-soft); }
+    .fg select, .fg input {
+        padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 9px;
+        background: var(--c-fffbf8, #fffbf8); font-family: inherit; font-size: 13px; color: var(--ink); min-width: 150px;
+    }
+    .fg.grow { flex: 1; min-width: 200px; }
+    .fg.grow input { width: 100%; }
+    .clear-btn {
+        padding: 9px 16px; border: 1px solid var(--line-strong); border-radius: 9px;
+        background: var(--surface, #fff); font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--c-7a5c49, #7a5c49); cursor: pointer;
+    }
+
+    .table-wrap { background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+    .table-scroll { overflow-x: auto; }
+    table.tbl { min-width: 980px; }
+
+    .rel-btn {
+        padding: 7px 15px; border: none; border-radius: 8px; font-family: inherit;
+        font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    .rel-btn.grant { background: #2e7d32; color: var(--on-accent, #fff); }
+    .rel-btn.grant:hover { background: #1b5e20; }
+    .rel-btn.revoke { background: var(--surface, #fff); color: #b71c1c; border: 1px solid #f5b8b2; }
+    .rel-btn.revoke:hover { background: #fdeceb; }
+    .rel-when { font-size: 10.5px; color: var(--ink-soft); display: block; margin-top: 3px; }
+    .note-in {
+        width: 100%; min-width: 190px; box-sizing: border-box; font: inherit; font-size: 12px;
+        padding: 6px 10px; border-radius: 8px; background: var(--c-fffbf8, #fffbf8);
+        border: 1px solid var(--line-strong); color: var(--ink);
+    }
+    .note-in:focus { outline: 2px solid rgba(244, 97, 26, .3); outline-offset: -1px; }
+    .note-said { font-size: 12px; color: var(--ink); font-style: italic; }
+    .row-count { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; padding: 13px 18px; }
+    .empty-msg { padding: 30px; text-align: center; color: var(--ink-soft); font-size: 13.5px; display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-head">
+    <h2>Rework Approvals</h2>
+    <p>Submitted cases are locked for agents. Release one and its owner can edit and resubmit it.</p>
+    <span class="scope-note">{{ icon('check-circle') }} {{ t.released|length }} released &middot; {{ t.awaiting_release|length }} locked</span>
+</div>
+
+<div class="flow">
+    <b>Agent submits</b> <span class="arrow">&rarr;</span> file locks
+    <span class="arrow">&rarr;</span> <b>you review and release</b>
+    <span class="arrow">&rarr;</span> agent edits and resubmits
+    <span class="arrow">&rarr;</span> <b>locks again</b>
+</div>
+
+<div class="kpi-strip">
+    <div class="kpi"><div class="v">{{ t.totals.submitted }}</div><div class="l">Submitted</div></div>
+    <div class="kpi"><div class="v">{{ t.awaiting_release|length }}</div><div class="l">Locked</div></div>
+    <div class="kpi"><div class="v">{{ t.released|length }}</div><div class="l">Released for Rework</div></div>
+</div>
+
+<div class="filter-bar">
+    <div class="fg grow">
+        <label for="f-search">Search</label>
+        <input type="text" id="f-search" placeholder="Case ID, customer, reason&hellip;" oninput="filterRows()">
+    </div>
+    <div class="fg">
+        <label for="f-agent">Agent</label>
+        <select id="f-agent" onchange="filterRows()">
+            <option value="">All agents</option>
+            {% for a in t.filters.agents %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="fg">
+        <label for="f-state">State</label>
+        <select id="f-state" onchange="filterRows()">
+            <option value="">All</option>
+            <option value="locked">Locked</option>
+            <option value="released">Released</option>
+        </select>
+    </div>
+    <button class="clear-btn" onclick="clearFilters()">Clear</button>
+</div>
+
+<div class="table-wrap">
+    <div class="table-scroll">
+        <table class="tbl">
+            <thead>
+                <tr>
+                    <th>Case ID</th><th>Agent</th><th>Client Bucket</th><th>Reason</th>
+                    <th>Amount</th><th>Decision</th><th>State</th><th>What needs reworking</th><th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="appr-body">
+                {% for r in t.submitted %}
+                <tr data-agent="{{ r.assigned_to }}" data-state="{{ 'released' if r.released else 'locked' }}"
+                    data-search="{{ (r.case_id ~ ' ' ~ r.customer ~ ' ' ~ r.reason_code ~ ' ' ~ r.reason_title)|lower }}">
+                    {# The evidence packet, not the legacy summary page — "review
+                       the case" means seeing what was actually filed. #}
+                    <td><a class="cid" href="{{ url_for('counter_evidence', case_id=r.case_id) }}"
+                           title="Open the evidence packet">{{ r.case_id }}</a></td>
+                    <td>{{ r.assigned_to }}</td>
+                    <td>{{ r.bucket }}</td>
+                    <td>{{ reason_label(r.reason_code, r.network) }}</td>
+                    <td><b>{{ r.currency }} {{ "%.2f"|format(r.amount) }}</b></td>
+                    <td>{{ r.status }}</td>
+                    <td class="js-state">
+                        {% if r.released %}
+                        <span class="pill ok">Released</span>
+                        <span class="rel-when">by {{ r.released_by }} &middot; {{ r.released_at }}</span>
+                        {% else %}
+                        <span class="pill wait">Locked</span>
+                        {% endif %}
+                    </td>
+                    <td class="js-note">
+                        {% if r.released %}
+                        <span class="note-said">{{ r.released_note or '&mdash;'|safe }}</span>
+                        {% else %}
+                        <input class="note-in" maxlength="400"
+                               placeholder="e.g. missing the delivery confirmation"
+                               onkeydown="if(event.key==='Enter'){this.closest('tr').querySelector('.rel-btn').click();}">
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="rel-btn {{ 'revoke' if r.released else 'grant' }}"
+                                data-case="{{ r.case_id }}"
+                                data-granted="{{ 'yes' if r.released else 'no' }}"
+                                onclick="toggleRelease(this)">
+                            {{ 'Revoke access' if r.released else 'Approve rework' }}
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="empty-msg" id="empty-msg">No cases match these filters.</div>
+    <div class="row-count" id="row-count">Showing {{ t.submitted|length }} of {{ t.submitted|length }} submitted cases</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterRows() {
+    var q = document.getElementById('f-search').value.trim().toLowerCase();
+    var agent = document.getElementById('f-agent').value;
+    var state = document.getElementById('f-state').value;
+
+    var rows = document.querySelectorAll('#appr-body tr');
+    var shown = 0;
+    rows.forEach(function (row) {
+        var ok = (!agent || row.dataset.agent === agent)
+              && (!state || row.dataset.state === state)
+              && (!q || row.dataset.search.indexOf(q) !== -1);
+        row.classList.toggle('hidden', !ok);
+        if (ok) { shown++; }
+    });
+    document.getElementById('row-count').textContent =
+        'Showing ' + shown + ' of ' + rows.length + ' submitted cases';
+    document.getElementById('empty-msg').style.display = shown === 0 ? 'block' : 'none';
+}
+
+function clearFilters() {
+    ['f-search', 'f-agent', 'f-state'].forEach(function (id) {
+        document.getElementById(id).value = '';
+    });
+    filterRows();
+}
+
+function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+}
+
+async function toggleRelease(btn) {
+    var grant = btn.dataset.granted !== 'yes';
+    var row = btn.closest('tr');
+    var noteEl = row.querySelector('.note-in');
+    var note = noteEl ? noteEl.value.trim() : '';
+
+    // Checked here as well as on the server so the lead is told before the
+    // round trip, not after it.
+    if (grant && !note) {
+        toast('Say what needs reworking — the agent sees this.', false);
+        if (noteEl) { noteEl.focus(); }
+        return;
+    }
+
+    btn.disabled = true;
+    try {
+        var r = await fetch('{{ url_for("admin_rework") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({case_id: btn.dataset.case, grant: grant, note: note}),
+        });
+        var j = await r.json();
+        if (!j.ok) { throw new Error(j.error || 'Could not update'); }
+
+        var cell = row.querySelector('.js-state');
+        btn.dataset.granted = grant ? 'yes' : 'no';
+        btn.textContent = grant ? 'Revoke access' : 'Approve rework';
+        btn.className = 'rel-btn ' + (grant ? 'revoke' : 'grant');
+        row.dataset.state = grant ? 'released' : 'locked';
+        cell.innerHTML = grant
+            ? '<span class="pill ok">Released</span><span class="rel-when">by ' + escapeHtml(j.released_by) + ' &middot; ' + escapeHtml(j.at) + '</span>'
+            : '<span class="pill wait">Locked</span>';
+        row.querySelector('.js-note').innerHTML = grant
+            ? '<span class="note-said">' + escapeHtml(j.note) + '</span>'
+            : '<input class="note-in" maxlength="400" placeholder="e.g. missing the delivery confirmation">';
+        toast(grant
+            ? btn.dataset.case + ' released — ' + row.dataset.agent + ' can now rework it.'
+            : btn.dataset.case + ' locked again.', true);
+    } catch (e) {
+        toast(e.message, false);
+    } finally {
+        btn.disabled = false;
+    }
+}
+</script>
+{% endblock %}

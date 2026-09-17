@@ -1,0 +1,20 @@
+{% extends "agent_base.html" %}
+{% block title %}Repository - Agent Level Interface{% endblock %}
+
+{% block extra_css %}
+{% include "_repository_css.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="agent-head">
+    <h2>Repository</h2>
+    <p>Templates and client documents you can pull from while working a case.</p>
+    <span class="scope-note">&#128065; Read-only &mdash; agents cannot edit repository content</span>
+</div>
+
+{% include "_repository_body.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "_repository_js.html" %}
+{% endblock %}

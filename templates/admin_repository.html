@@ -1,0 +1,20 @@
+{% extends "admin_base.html" %}
+{% block title %}Repository - Team Lead Interface{% endblock %}
+
+{% block extra_css %}
+{% include "_repository_css.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="admin-head">
+    <h2>Repository</h2>
+    <p>Templates and client documents your team pulls from while working a case.</p>
+    <span class="scope-note">&#9998; Procedures are written here &mdash; letters and policies from a case's counter evidence page</span>
+</div>
+
+{% include "_repository_body.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "_repository_js.html" %}
+{% endblock %}

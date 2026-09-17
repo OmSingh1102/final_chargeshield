@@ -1,0 +1,330 @@
+{% extends "agent_base.html" %}
+{% block title %}Chargeback Management - Agent Level Interface{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Tiles borrow the shared .kpi metrics: label above, value below, left
+       aligned. The gradient fill and centred text were this page's own. */
+    .cb-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .cb-tile {
+        background: var(--card); border: 1px solid var(--border);
+        border-radius: var(--radius-xl); padding: 16px; box-shadow: var(--shadow-sm);
+    }
+    .cb-tile .l {
+        font-size: 12px; font-weight: 500; text-transform: uppercase;
+        letter-spacing: .05em; color: var(--muted-foreground);
+    }
+    .cb-tile .v {
+        font-size: 24px; font-weight: 600; color: var(--foreground);
+        line-height: 1.2; margin-top: 8px; font-variant-numeric: tabular-nums;
+    }
+
+    .filter-bar {
+        display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+        background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl);
+        padding: 16px; box-shadow: var(--shadow-sm); margin-bottom: 16px;
+    }
+    .fg { display: flex; flex-direction: column; gap: 6px; }
+    .fg label { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .05em; color: var(--muted-foreground); }
+    .fg select, .fg input {
+        height: 36px; padding: 0 12px; border: 1px solid var(--input); border-radius: var(--radius-md);
+        background: var(--card); font-family: inherit; font-size: 14px; color: var(--foreground);
+        min-width: 140px; box-shadow: var(--shadow-sm);
+    }
+    .fg input:focus, .fg select:focus { outline: none; border-color: var(--ring); box-shadow: 0 0 0 1px var(--ring); }
+    .fg.grow { flex: 1; min-width: 210px; }
+    .fg.grow input { width: 100%; }
+    .clear-btn {
+        height: 36px; padding: 0 16px; border: 1px solid var(--input); border-radius: var(--radius-md);
+        background: var(--background); font-family: inherit; font-size: 14px; font-weight: 500;
+        color: var(--foreground); cursor: pointer; box-shadow: var(--shadow-sm);
+    }
+    .clear-btn:hover { background: var(--accent); color: var(--accent-foreground); }
+
+    .table-scroll { overflow-x: auto; }
+    table.cb { width: 100%; border-collapse: collapse; min-width: 1250px; }
+    /* Header metrics match table.tbl in the component layer: a light muted bar,
+       not a dark filled one. Sticky is kept — this table is long. */
+    table.cb th {
+        background: color-mix(in oklch, var(--muted) 40%, var(--card));
+        color: var(--muted-foreground); font-size: 12px; font-weight: 500;
+        text-transform: none; letter-spacing: 0; padding: 0 8px; height: 40px;
+        text-align: left; white-space: nowrap; position: sticky; top: 0;
+        border-bottom: 1px solid var(--border);
+    }
+    table.cb td { padding: 8px; font-size: 14px; color: var(--foreground); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    table.cb tbody tr:hover { background: color-mix(in oklch, var(--muted) 50%, transparent); }
+    table.cb tbody tr.hidden { display: none; }
+    .mono { font-family: ui-monospace, 'Consolas', monospace; font-size: 12px; color: var(--muted-foreground); }
+    .rc { font-weight: 600; }
+    .rc small { display: block; font-weight: 400; color: var(--muted-foreground); font-size: 12px; max-width: 190px; white-space: normal; }
+
+    .act { display: flex; gap: 8px; }
+    .act a, .act span {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 27px; height: 27px; border-radius: 7px; font-size: 13px; text-decoration: none;
+        border: 1px solid var(--line-strong);
+    }
+    .act .view { background: var(--c-fff4ec, #fff4ec); color: var(--brand-dark); }
+    .act .view:hover { background: var(--brand); color: var(--on-accent, #fff); text-decoration: none; }
+    .act .locked { background: var(--c-f4f0ed, #f4f0ed); color: var(--c-b6a79c, #b6a79c); cursor: not-allowed; }
+    /* Team lead has released this one for rework. */
+    .act .released { background: #e9f6ea; color: #2e7d32; border-color: #a5d6a7; }
+
+    .act-select {
+        padding: 6px 9px; border: 1px solid var(--line-strong); border-radius: 8px;
+        background: var(--c-fffbf8, #fffbf8); font-family: inherit; font-size: 12px; font-weight: 600;
+        color: var(--ink); cursor: pointer; min-width: 132px;
+    }
+    .act-select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(244,97,26,.13); }
+    .act-select:disabled { background: var(--c-f4f0ed, #f4f0ed); color: var(--c-b6a79c, #b6a79c); cursor: not-allowed; border-style: dashed; }
+    .act-select.saving { border-color: #b45309; }
+    .act-select.saved { border-color: #2e7d32; background: var(--c-f1f8f1, #f1f8f1); }
+    .act-select.failed { border-color: #c62828; background: #fdeceb; }
+
+    .toast {
+        position: fixed; right: 22px; bottom: 22px; z-index: 60;
+        padding: 12px 18px; border-radius: 11px; font-size: 13px; font-weight: 600;
+        box-shadow: 0 6px 20px rgba(146,64,14,.2); display: none; max-width: 340px;
+    }
+    .toast.ok { background: #e9f6ea; border: 1px solid #a5d6a7; color: #1b5e20; }
+    .toast.err { background: #fdeceb; border: 1px solid #f5b8b2; color: #b71c1c; }
+
+    .table-foot { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 13px 18px; flex-wrap: wrap; }
+    .row-count { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+    .empty-msg { padding: 34px; text-align: center; color: var(--ink-soft); font-size: 13.5px; display: none; }
+
+    .readonly-note {
+        margin-top: 16px; padding: 12px 16px; background: var(--brand-wash, #fff7f2);
+        border: 1px dashed var(--line-strong); border-radius: 10px;
+        font-size: 12px; color: var(--ink-soft-2, #7a6558); line-height: 1.55;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="agent-head">
+    <h2>Chargeback Management</h2>
+    <p>Your assigned queue. Cases belonging to other agents are not shown here.</p>
+    <span class="scope-note">&#128274; Scoped to {{ a.agent }} &mdash; {{ a.total_cases }} cases</span>
+</div>
+
+<div class="cb-tiles">
+    <div class="cb-tile"><div class="l">Pending Cases</div><div class="v">{{ a.kpis.pending }}</div></div>
+    <div class="cb-tile"><div class="l">Represented</div><div class="v">{{ a.kpis.represented }}</div></div>
+    <div class="cb-tile"><div class="l">Accept Recommended</div><div class="v">{{ a.kpis.accepted }}</div></div>
+    <div class="cb-tile"><div class="l">Auto Represent</div><div class="v">{{ a.kpis.auto_represent }}</div></div>
+</div>
+
+<!-- ═══ Case filter + search ═══ -->
+<div class="filter-bar">
+    <div class="fg grow">
+        <label for="f-search">Search</label>
+        <input type="text" id="f-search" placeholder="Case ID, customer, order, TXN, phone&hellip;" oninput="filterRows()">
+    </div>
+    <div class="fg">
+        <label for="f-card">Card Type</label>
+        <select id="f-card" onchange="filterRows()">
+            <option value="">All</option>
+            {% for n in a.filters.networks %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="fg">
+        <label for="f-cat">Category</label>
+        <select id="f-cat" onchange="filterRows()">
+            <option value="">All</option>
+            {% for c in a.filters.categories %}<option value="{{ c }}">{{ c|title }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="fg">
+        <label for="f-stage">Stage</label>
+        <select id="f-stage" onchange="filterRows()">
+            <option value="">All</option>
+            {% for s in a.filters.stages %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="fg">
+        <label for="f-status">Status</label>
+        <select id="f-status" onchange="filterRows()">
+            <option value="">All</option>
+            {% for s in a.filters.statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="fg">
+        <label for="f-size">Show</label>
+        <select id="f-size" onchange="filterRows()">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="0" selected>All</option>
+        </select>
+    </div>
+    <button class="clear-btn" onclick="clearFilters()">Clear</button>
+</div>
+
+<div class="table-wrap">
+    <div class="table-scroll">
+        <table class="cb">
+            <thead>
+                <tr>
+                    <th>Case ID</th><th>Card Type</th><th>Reason Code</th><th>CB Date</th>
+                    <th>Amount</th><th>Order ID</th><th>TXN Date</th><th>TXN ID</th>
+                    <th>Client</th><th>Last 4</th><th>Cust. Name</th><th>Phone</th>
+                    <th>Actions</th><th>Decision</th>
+                </tr>
+            </thead>
+            <tbody id="cb-body">
+                {% for r in a.rows %}
+                <tr data-card="{{ r.card_type }}" data-cat="{{ r.category }}" data-stage="{{ r.stage }}"
+                    data-status="{{ r.status }}"
+                    data-search="{{ (r.case_id ~ ' ' ~ r.customer ~ ' ' ~ r.order_id ~ ' ' ~ r.txn_id ~ ' ' ~ r.phone ~ ' ' ~ r.reason_code ~ ' ' ~ r.client)|lower }}">
+                    <td><a class="cid" href="{{ url_for('case_detail', case_id=r.case_id) }}">{{ r.case_id }}</a></td>
+                    <td>{{ r.card_type }}</td>
+                    <td class="rc">{{ r.reason_code }}<small>{{ r.reason_title }}</small></td>
+                    <td class="mono">{{ r.cb_date }}</td>
+                    <td><b>{{ r.currency }} {{ "%.2f"|format(r.amount) }}</b></td>
+                    <td class="mono">{{ r.order_id }}</td>
+                    <td class="mono">{{ r.txn_date }}</td>
+                    <td class="mono">{{ r.txn_id }}</td>
+                    <td class="mono">{{ r.client }}</td>
+                    <td class="mono">{{ r.last_four }}</td>
+                    <td>{{ r.customer }}</td>
+                    <td class="mono">{{ r.phone }}</td>
+                    <td>
+                        <div class="act">
+                            <a class="view" href="{{ url_for('case_detail', case_id=r.case_id) }}" title="View case">&#128065;</a>
+                            {% if r.editable %}
+                            <a class="view" href="{{ url_for('counter_evidence', case_id=r.case_id) }}" title="Work evidence">&#9998;</a>
+                            {% else %}
+                            <span class="locked" title="Submitted &mdash; rework requires team-lead approval">&#128274;</span>
+                            {% endif %}
+                            {% if r.released %}
+                            <span class="released" title="Released for rework by {{ r.released_by }}">&#128275;</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        <select class="act-select" data-case="{{ r.case_id }}"
+                                onchange="recordAction(this)"
+                                {% if not r.editable %}disabled title="Submitted &mdash; rework requires team-lead approval"{% endif %}>
+                            {% for act in agent_actions %}
+                            <option value="{{ act }}" {% if act == r.status %}selected{% endif %}>{{ act }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="empty-msg" id="empty-msg">No cases match these filters.</div>
+    <div class="table-foot">
+        <div class="row-count" id="row-count">Showing {{ a.rows|length }} of {{ a.rows|length }} cases</div>
+    </div>
+</div>
+
+<div class="readonly-note">
+    <b>Read-only after submission.</b> Recording <i>Contested</i> submits the case, which locks the row &mdash;
+    reworking it then needs a team lead to release access. The server enforces this, not just the page.
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterRows() {
+    var q = document.getElementById('f-search').value.trim().toLowerCase();
+    var card = document.getElementById('f-card').value;
+    var cat = document.getElementById('f-cat').value;
+    var stage = document.getElementById('f-stage').value;
+    var status = document.getElementById('f-status').value;
+    var limit = parseInt(document.getElementById('f-size').value, 10);
+
+    var rows = document.querySelectorAll('#cb-body tr');
+    var shown = 0;
+    rows.forEach(function (row) {
+        var ok = (!card || row.dataset.card === card)
+              && (!cat || row.dataset.cat === cat)
+              && (!stage || row.dataset.stage === stage)
+              && (!status || row.dataset.status === status)
+              && (!q || row.dataset.search.indexOf(q) !== -1);
+        if (ok && limit > 0 && shown >= limit) { ok = false; }
+        row.classList.toggle('hidden', !ok);
+        if (ok) { shown++; }
+    });
+
+    document.getElementById('row-count').textContent =
+        'Showing ' + shown + ' of ' + rows.length + ' cases';
+    document.getElementById('empty-msg').style.display = shown === 0 ? 'block' : 'none';
+}
+
+function clearFilters() {
+    ['f-search', 'f-card', 'f-cat', 'f-stage', 'f-status'].forEach(function (id) {
+        document.getElementById(id).value = '';
+    });
+    document.getElementById('f-size').value = '0';
+    filterRows();
+}
+
+function toast(msg, ok) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast ' + (ok ? 'ok' : 'err');
+    t.style.display = 'block';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function () { t.style.display = 'none'; }, 3200);
+}
+
+/* Record the agent's decision. The server rewrites case_status / outcome /
+   submission_status, so Manager Hub and the Admin Page pick it up on their
+   next load — no extra wiring needed here. */
+async function recordAction(sel) {
+    var row = sel.closest('tr');
+    var previous = row.dataset.status;
+
+    /* Conceding refunds real money and files nothing — the one action here
+       that must never happen on a mis-click. Everything else stays one click. */
+    if (sel.value === 'Not Fought') {
+        var sure = window.confirm('Concede ' + sel.dataset.case + '?\n\n' +
+            'The chargeback is accepted: the disputed amount is refunded and ' +
+            'no rebuttal will be filed.');
+        if (!sure) { sel.value = previous; return; }
+    }
+    sel.className = 'act-select saving';
+
+    try {
+        var r = await fetch('{{ url_for("agent_desk_action") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({case_id: sel.dataset.case, action: sel.value}),
+        });
+        var j = await r.json();
+        if (!j.ok) { throw new Error(j.error || 'Could not save'); }
+
+        row.dataset.status = sel.value;
+        sel.className = 'act-select saved';
+        toast('Saved — ' + sel.dataset.case + ' is now ' + j.case_status + '.', true);
+
+        // Submitting locks the row, exactly as the server now enforces.
+        if (j.submission_status === 'Submitted') {
+            sel.disabled = true;
+            sel.title = 'Submitted — rework requires team-lead approval';
+            var act = row.querySelector('.act');
+            var edit = act.querySelector('a[href*="/counter/"]');
+            if (edit) {
+                var lock = document.createElement('span');
+                lock.className = 'locked';
+                lock.title = 'Submitted — rework requires team-lead approval';
+                lock.innerHTML = '&#128274;';
+                act.replaceChild(lock, edit);
+            }
+        }
+    } catch (e) {
+        sel.value = previous;           // put the control back where it was
+        sel.className = 'act-select failed';
+        toast(e.message, false);
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,242 @@
+{% extends "admin_base.html" %}
+{% block title %}Dashboard - Team Lead Interface{% endblock %}
+
+{% block extra_css %}
+<style>
+    .agent-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .agent-card {
+        background: linear-gradient(180deg, var(--surface, #fff) 0%, var(--c-fffaf6, #fffaf6) 100%);
+        border: 1px solid var(--line-strong); border-radius: 16px;
+        padding: 18px 20px; box-shadow: var(--shadow);
+    }
+    .agent-card h4 { font-size: 15px; font-weight: 800; color: var(--ink); }
+    .agent-card .share { font-size: 11.5px; color: var(--ink-soft); font-weight: 600; }
+    .ac-bar { height: 8px; background: var(--c-f7ede5, #f7ede5); border-radius: 5px; margin: 12px 0 14px; overflow: hidden; }
+    .ac-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--c-ff8a4c, #ff8a4c), var(--brand)); }
+    .ac-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .ac-stats div { text-align: center; }
+    .ac-stats b { display: block; font-size: 18px; font-weight: 800; color: var(--ink); }
+    .ac-stats span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-soft); font-weight: 700; }
+
+    /* .bucket-grid, .bucket, .split and .split-legend went with the Client
+       Buckets panel they styled. Nothing else on this page used them. */
+
+    /* ── Team representment outcomes ── */
+    .rep-ds { margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
+              padding: 7px 13px; border: 1px solid var(--line-strong); border-radius: 10px;
+              background: var(--surface-2, #f7efe9); font-size: 12px; font-weight: 700;
+              color: var(--ink); word-break: break-all; max-width: 340px; }
+    .rep-top { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; margin-bottom: 20px; }
+    /* The donut itself reuses .pie.hole from the shared component layer. */
+    .rep-legend { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 280px; }
+    .rep-row { display: flex; align-items: center; gap: 11px;
+               padding: 10px 14px; border: 1px solid var(--line); border-radius: 11px; }
+    .rep-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .rep-name { flex: 1; font-size: 13px; font-weight: 700; color: var(--ink); }
+    .rep-amt { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 2px;
+               font-size: 11px; font-weight: 600; color: var(--ink-soft);
+               font-variant-numeric: tabular-nums; }
+    .rep-n { font-size: 17px; font-weight: 800; color: var(--ink);
+             font-variant-numeric: tabular-nums; }
+    .rep-pct { font-size: 12px; color: var(--ink-soft); min-width: 46px; text-align: right;
+               font-variant-numeric: tabular-nums; }
+    .rep-cards { margin-bottom: 12px; }
+    /* One line per currency in place of a single .v figure. */
+    .rep-cur { margin-top: 4px; display: flex; flex-direction: column; gap: 2px; }
+    .rep-cur div { font-size: 15px; font-weight: 800; color: inherit;
+                   font-variant-numeric: tabular-nums; }
+    .rep-cur b { font-size: 10.5px; font-weight: 700; color: var(--ink-soft); margin-right: 4px; }
+    .rep-none { color: var(--ink-faint, #b0998a); }
+    .rep-note { font-size: 12.5px; line-height: 1.65; color: var(--ink-soft);
+                background: var(--surface-2, #f7efe9); border-radius: 10px;
+                padding: 13px 16px; margin-top: 4px; }
+    .rep-note b { color: var(--ink); }
+    .kpi.tone-success .rep-cur div { color: #059669; }
+    .kpi.tone-warning .rep-cur div { color: #d97706; }
+    .kpi.tone-danger  .rep-cur div { color: #e11d48; }
+
+    .day-row { display: grid; grid-template-columns: 108px 1fr 96px; align-items: center; gap: 14px; margin-bottom: 10px; }
+    .day-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+    .day-track { height: 22px; background: var(--c-f7ede5, #f7ede5); border-radius: 6px; overflow: hidden; }
+    .day-fill { height: 100%; background: linear-gradient(90deg, var(--c-ff8a4c, #ff8a4c), var(--brand)); }
+    .day-val { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-align: right; }
+    .day-val b { color: var(--ink); font-size: 13.5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-head">
+    <h2>Dashboard</h2>
+    <p>Every case across your team, and how the work is spread.</p>
+    {% if t.totals.cases %}
+    <span class="scope-note">&#128101; {{ t.agents|length }} agents &mdash; {{ t.totals.cases }} cases</span>
+    {% endif %}
+</div>
+
+{% if not t.totals.cases %}
+{% include "_empty_state.html" %}
+{% else %}
+
+{# Headline split first: what the system handled on its own, and what still
+   needs a person. The tier behind "Human in the Loop" — review vs recommend
+   accept — stays on the case row itself. #}
+<div class="kpi-strip">
+    <div class="kpi"><div class="v">{{ ml.total_cases }}</div><div class="l">Total Cases</div></div>
+    <div class="kpi tone-success"><div class="v">{{ ml.auto_processed }}</div><div class="l">Automatically Processed</div></div>
+    <div class="kpi tone-warning"><div class="v">{{ ml.human_in_loop }}</div><div class="l">Human in the Loop</div></div>
+    <div class="kpi tone-info"><div class="v">{{ ml.auto_rate_pct }}%</div><div class="l">Automation Rate</div></div>
+</div>
+
+<div class="kpi-strip">
+    <div class="kpi"><div class="v">{{ t.totals.cases }}</div><div class="l">Team Cases</div></div>
+    <div class="kpi"><div class="v">{{ t.totals.pending }}</div><div class="l">Pending</div></div>
+    <div class="kpi"><div class="v">{{ t.totals.submitted }}</div><div class="l">Submitted</div></div>
+    <div class="kpi"><div class="v">{{ t.totals.released }}</div><div class="l">Released for Rework</div></div>
+    {# Replaces the old "High Priority" tile, which counted cases over $500 —
+       an amount threshold, not an urgency. This one is actionable. #}
+    <div class="kpi {% if t.totals.unassigned %}tone-warning{% endif %}">
+        <div class="v">{{ t.totals.unassigned }}</div><div class="l">Unassigned</div>
+    </div>
+</div>
+
+<!-- ═══ Team representment outcomes ═══ -->
+<div class="panel">
+    <div class="panel-head">
+        <div>
+            <h3>&#9878; Team Representment Outcomes</h3>
+            <div class="sub">
+                {{ rep.pool }} contested dispute{{ '' if rep.pool == 1 else 's' }} &middot;
+                separate from case status
+            </div>
+        </div>
+        {% if dataset %}<span class="rep-ds">&#128451; {{ dataset }}</span>{% endif %}
+    </div>
+
+    {% if not rep.pool %}
+    <div class="rep-note" style="margin:4px 0 0;">
+        Nothing has been filed yet, so there is no representment pool. A case joins it
+        once an agent submits a rebuttal or the engine auto-represents it.
+    </div>
+    {% else %}
+    <div class="rep-top">
+        {# Same conic-gradient idiom as the management hub's donuts; arcs are
+           computed server-side by ManagerCharts._add_arcs. #}
+        <div class="pie hole" style="width:150px; height:150px; background: conic-gradient({% for r in rep.rows %}{{ r.color }} {{ r.start_deg }}deg {{ r.end_deg }}deg{{ ', ' if not loop.last }}{% endfor %});"></div>
+
+        <div class="rep-legend">
+            {% for r in rep.rows %}
+            <div class="rep-row">
+                <span class="rep-dot" style="background:{{ r.color }};"></span>
+                <div class="rep-name">
+                    {{ r.name }}
+                    <div class="rep-amt">
+                        {% for cur, val in r.amounts.items() %}<span>{{ cur }} {{ "{:,.2f}".format(val) }}</span>{% else %}<span>&mdash;</span>{% endfor %}
+                    </div>
+                </div>
+                <b class="rep-n">{{ r.count }}</b>
+                <span class="rep-pct">{{ r.pct }}%</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {# Amounts stay split by currency. The book runs in IDR, NGN and USD, and a
+       single total across them would be arithmetic on incompatible units. #}
+    <div class="kpi-strip rep-cards">
+        {% for label, key, tone in [
+            ('Total Representment Amount', 'total',   ''),
+            ('Amount Won Back',            'won',     'tone-success'),
+            ('Amount Still at Decision',   'pending', 'tone-warning'),
+            ('Amount Lost',                'lost',    'tone-danger')] %}
+        <div class="kpi {{ tone }}">
+            <div class="l">{{ label }}</div>
+            <div class="rep-cur">
+                {% for cur, val in rep.amounts[key].items() %}
+                <div><b>{{ cur }}</b> {{ "{:,.2f}".format(val) }}</div>
+                {% else %}<div class="rep-none">&mdash;</div>{% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if rep.has_decisions %}
+    <div class="kpi-strip">
+        <div class="kpi tone-success">
+            <div class="l">Recovery Rate</div>
+            <div class="rep-cur">
+                {% for cur, pct in rep.recovery.items() %}<div><b>{{ cur }}</b> {{ pct }}%</div>{% endfor %}
+            </div>
+            <div class="hint">Disputed amount recovered, per currency</div>
+        </div>
+        <div class="kpi tone-info">
+            <div class="l">Win Rate</div>
+            <div class="v">{{ rep.win_rate }}%</div>
+            <div class="hint">{{ rep.won }} won of {{ rep.decided }} that reached a decision</div>
+        </div>
+    </div>
+    {% else %}
+    {# No rate cards rather than a row of zeros: a rate over nothing is not 0%,
+       it is undefined, and printing 0% would read as "we lose everything". #}
+    <div class="rep-note">
+        <b>No decisions recorded yet.</b> All {{ rep.pool }} filed dispute{{ '' if rep.pool == 1 else 's' }}
+        are still awaiting a ruling, so there is no win or recovery rate to report. These fill in
+        when the ingested sheet carries a <code>CaseOutcome</code> column, or when an agent records
+        a decision against a case.
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if rep.outside %}
+    <div class="stub-note">
+        <b>{{ rep.outside }} case{{ '' if rep.outside == 1 else 's' }} outside the representment pool:</b>
+        {{ rep.outside_reasons|join(', ') }}. They are excluded because nothing has been filed on
+        them &mdash; counting them would flatter or punish a win rate they took no part in.
+    </div>
+    {% endif %}
+</div>
+
+<!-- ═══ Per-agent output ═══ -->
+<div class="panel">
+    <div class="panel-head">
+        <div><h3>My Agents</h3><div class="sub">Workload and progress for everyone reporting to you.</div></div>
+    </div>
+    <div class="agent-grid">
+        {% for a in t.agents %}
+        <div class="agent-card">
+            <h4>{{ a.name }}</h4>
+            <div class="share">{{ a.assigned }} cases &mdash; {{ a.share_pct }}% of the team's book</div>
+            <div class="ac-bar"><i style="width:{{ a.share_pct }}%;"></i></div>
+            <div class="ac-stats">
+                <div><b>{{ a.open }}</b><span>Open</span></div>
+                <div><b>{{ a.actioned }}</b><span>Actioned</span></div>
+                <div><b>{{ a.submitted }}</b><span>Submitted</span></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{# A Client Buckets panel sat here, splitting the book by client and showing
+   who covered each. Removed by request. The sheet carries no client column, so
+   it only ever rendered one book holding every case -- a breakdown of one. The
+   buckets are still computed in TeamConsole and still drive the lead totals. #}
+
+<!-- ═══ Team output ═══ -->
+<div class="panel">
+    <div class="panel-head">
+        <div><h3>Team Output</h3><div class="sub">Cases per day against {{ t.team_target }} ({{ t.agents|length }} agents &times; 60).</div></div>
+    </div>
+    {% for d in t.daily %}
+    <div class="day-row">
+        <div class="day-label">{{ d.label }}</div>
+        <div class="day-track"><div class="day-fill" style="width:{{ d.pct }}%;"></div></div>
+        <div class="day-val"><b>{{ d.count }}</b> / {{ d.target }}</div>
+    </div>
+    {% endfor %}
+    <div class="stub-note">
+        The sheet records disputes on four dates only, so this is the whole history it contains &mdash;
+        not a trailing window.
+    </div>
+</div>
+{% endif %}{# t.totals.cases #}
+{% endblock %}

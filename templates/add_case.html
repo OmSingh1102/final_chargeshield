@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}Add New Chargeback Case{% endblock %}
+
+{% block extra_css %}
+<style>
+.form-container { max-width: 960px; margin: 0 auto; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label {
+    font-size: 12px; font-weight: 700; color: var(--c-555555, #555); text-transform: uppercase;
+    letter-spacing: .3px; padding: 2px 0;
+}
+.form-group label span.req { color: #c62828; }
+.form-group input, .form-group select, .form-group textarea {
+    padding: 10px 14px; border: 1px solid var(--c-cccccc, #ccc); border-radius: 6px; font-size: 14px;
+    font-family: inherit; background: var(--surface, #fff); transition: border-color .2s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    border-color: var(--brand, #f4611a); outline: none; box-shadow: 0 0 0 3px rgba(21,101,192,.1);
+}
+.form-group textarea { min-height: 80px; resize: vertical; }
+.form-group.full { grid-column: 1 / -1; }
+.form-section {
+    background: var(--surface, #fff); border-radius: 12px; padding: 24px 28px; margin-bottom: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06);
+}
+.form-section h3 {
+    font-size: 14px; font-weight: 700; color: var(--ink-2, #2e1f17); margin: 0 0 16px;
+    padding-bottom: 10px; border-bottom: 2px solid var(--c-e0e0e0, #e0e0e0);
+    display: flex; align-items: center; gap: 8px;
+}
+.form-section h3 .sec-dot {
+    width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+}
+.submit-row {
+    display: flex; gap: 12px; justify-content: center; margin: 28px 0;
+}
+.submit-btn {
+    padding: 14px 36px; border-radius: 8px; font-size: 15px; font-weight: 700;
+    cursor: pointer; border: none; color: var(--on-accent, #fff); transition: background .2s;
+}
+.submit-btn.primary { background: var(--brand, #f4611a); }
+.submit-btn.primary:hover { background: var(--brand-dark, #c2410c); }
+.submit-btn.success { background: #2e7d32; }
+.submit-btn.success:hover { background: #1b5e20; }
+.submit-btn.secondary { background: var(--c-555555, #555); }
+.submit-btn.secondary:hover { background: var(--c-333333, #333); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ home_url }}">&#8962; Home</a> &gt; <a href="{{ url_for('ingest') }}">Ingest Cases</a> &gt; Add New Case
+</div>
+
+<div class="case-header">
+    <div>
+        <h2>Add New Chargeback Case</h2>
+        <p style="color:#666; margin-top:4px;">Enter dispute details received from the payment processor</p>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('add_case') }}">
+<div class="form-container">
+
+    <!-- Section 1: Dispute Information -->
+    <div class="form-section">
+        <h3><span class="sec-dot" style="background:#b45309;"></span> Dispute Information (from PSP)</h3>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Chargeback Case ID <span class="req">*</span></label>
+                <input type="text" name="case_id" placeholder="e.g. 1111" required>
+            </div>
+            <div class="form-group">
+                <label>Card Type <span class="req">*</span></label>
+                <select name="card_type" required>
+                    <option value="Visa">Visa</option>
+                    <option value="Mastercard">Mastercard</option>
+                    <option value="Amex">Amex</option>
+                    <option value="Discover">Discover</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Category <span class="req">*</span></label>
+                <select name="category">
+                    <option value="Fraud">Fraud</option>
+                    <option value="Merchandise">Merchandise</option>
+                    <option value="Processing">Processing</option>
+                    <option value="Subscription">Subscription</option>
+                    <option value="Refund">Refund</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Reason Code <span class="req">*</span></label>
+                {# Built from the catalog rather than hardcoded here. The ten
+                   descriptions used to live in this file as their own copies,
+                   and had already drifted from the knowledge base. #}
+                <select name="reason_code" required>
+                    {% for rc in reason_options %}
+                    <option value="{{ rc.code }}">{{ rc.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>ARN</label>
+                <input type="text" name="arn" placeholder="Acquirer Reference Number">
+            </div>
+            <div class="form-group">
+                <label>Chargeback Date <span class="req">*</span></label>
+                <input type="date" name="chargeback_date" required>
+            </div>
+            <div class="form-group">
+                <label>Dollar Amount <span class="req">*</span></label>
+                <input type="number" name="amount" step="0.01" placeholder="45.33" required>
+            </div>
+            <div class="form-group">
+                <label>Card Expiry Date (MM/YYYY)</label>
+                <input type="text" name="card_expiry" placeholder="MM/YYYY">
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Transaction & Processor -->
+    <div class="form-section">
+        <h3><span class="sec-dot" style="background:#2e7d32;"></span> Transaction &amp; Processor Details (from Gateway)</h3>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Order ID</label>
+                <input type="text" name="order_id" placeholder="Order reference">
+            </div>
+            <div class="form-group">
+                <label>Transaction Date</label>
+                <input type="date" name="transaction_date">
+            </div>
+            <div class="form-group">
+                <label>Transaction ID</label>
+                <input type="text" name="transaction_id" placeholder="e.g. 12345">
+            </div>
+            <div class="form-group">
+                <label>Processor Name</label>
+                <select name="processor">
+                    <option value="Adyen">Adyen</option>
+                    <option value="Braintree">Braintree</option>
+                    <option value="Stripe">Stripe</option>
+                    <option value="Worldpay">Worldpay</option>
+                    <option value="PayPal">PayPal</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Contest Date</label>
+                <input type="date" name="contest_date">
+            </div>
+            <div class="form-group">
+                <label>Agent Name</label>
+                <select name="agent_name">
+                    <option value="">Select Agent</option>
+                    <option value="Priya Sharma">Priya Sharma</option>
+                    <option value="Marcus Chen">Marcus Chen</option>
+                    <option value="Sarah Johnson">Sarah Johnson</option>
+                    <option value="Diego Alvarez">Diego Alvarez</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Customer & Card -->
+    <div class="form-section">
+        <h3><span class="sec-dot" style="background:#f4611a;"></span> Customer &amp; Card Details (from CRM)</h3>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Client</label>
+                <input type="text" name="client" placeholder="e.g. TT" value="TT">
+            </div>
+            <div class="form-group">
+                <label>Merchant ID</label>
+                <input type="text" name="merchant_id" placeholder="Merchant account ID">
+            </div>
+            <div class="form-group">
+                <label>Last 4 Digits of Card</label>
+                <input type="text" name="card_last_four" placeholder="1234" maxlength="4">
+            </div>
+            <div class="form-group">
+                <label>Customer Name</label>
+                <input type="text" name="customer_name" placeholder="Cardholder name">
+            </div>
+            <div class="form-group">
+                <label>Customer Email ID</label>
+                <input type="email" name="customer_email" placeholder="email@example.com">
+            </div>
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="text" name="phone" placeholder="+1 xxx-xxx-xxxx">
+            </div>
+            <div class="form-group">
+                <label>Country</label>
+                <input type="text" name="country" value="United States of America">
+            </div>
+            <div class="form-group">
+                <label>State</label>
+                <input type="text" name="state" placeholder="e.g. Alaska">
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 4: Shipping & Evidence -->
+    <div class="form-section">
+        <h3><span class="sec-dot" style="background:#e65100;"></span> Shipping &amp; Evidence (from Fulfillment Portal)</h3>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Tracking ID</label>
+                <input type="text" name="tracking_id" placeholder="Shipment tracking number">
+            </div>
+            <div class="form-group">
+                <label>AVS/CVV</label>
+                <select name="avs_cvv">
+                    <option value="Pass">Pass</option>
+                    <option value="Fail">Fail</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Action Taken</label>
+                <select name="action_taken">
+                    <option value="">Select Action</option>
+                    <option value="Represent">Represent</option>
+                    <option value="Accept">Accept</option>
+                    <option value="Escalate">Escalate</option>
+                </select>
+            </div>
+            <div class="form-group full">
+                <label>Additional Notes</label>
+                <textarea name="notes" placeholder="Any additional information about this dispute..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="submit-row">
+        <a href="{{ url_for('ingest') }}" class="submit-btn secondary">Cancel</a>
+        <button type="submit" class="submit-btn primary">Save &amp; Enrich Case</button>
+        <button type="submit" name="action" value="save_and_represent" class="submit-btn success">Save &amp; Auto-Represent</button>
+    </div>
+
+</div>
+</form>
+{% endblock %}

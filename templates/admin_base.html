@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en"{% if ui_theme and ui_theme != "default" %} data-theme="{{ ui_theme }}"{% endif %}>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Team Lead Interface - ChargeShield AI{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {# The shell, panel, table, pill and button CSS this file used to declare
+       inline now lives in the component layer of style.css, shared with the
+       agent / manager / client shells. Only the toast is still local. #}
+    <style>
+        .toast {
+            position: fixed; right: 22px; bottom: 22px; z-index: 60;
+            padding: 12px 16px; border-radius: var(--radius-lg);
+            font-size: 14px; font-weight: 500; border: 1px solid transparent;
+            box-shadow: var(--shadow-lift); display: none; max-width: 360px;
+        }
+        .toast.ok  { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+        .toast.err { background: #fff1f2; border-color: #fecdd3; color: #be123c; }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+<div class="app" id="app">
+    <aside class="app-side">
+        <div class="app-side-brand">
+            <div class="brand-row">
+                <span class="brand-mark">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 1.5 3.5 5.2v6.4c0 5.2 3.6 10 8.5 11.4 4.9-1.4 8.5-6.2 8.5-11.4V5.2L12 1.5Zm-1.3 15.1-4-4 1.6-1.6 2.4 2.4 5.4-5.4 1.6 1.6-7 7Z"/>
+                    </svg>
+                </span>
+                <div style="min-width:0">
+                    <div class="bname">ChargeShield AI</div>
+                    <div class="bsub">Team Lead</div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-icon" data-side-toggle aria-label="Collapse sidebar">&#8249;</button>
+        </div>
+
+        <nav class="app-nav">
+            <div class="app-nav-title">Team &mdash; {{ t.agents|length }} agents</div>
+            {#- One definition of the two pending counts, so a child link and
+                its group header can never disagree about the number. -#}
+            {%- macro badge_count(endpoint) -%}
+                {%- if endpoint == 'admin_approvals' -%}{{ t.awaiting_release|length }}
+                {%- elif endpoint == 'admin_allocation' -%}{{ t.totals.pending }}
+                {%- else -%}0{%- endif -%}
+            {%- endmacro -%}
+            {% for item in admin_nav %}
+            {% if item.children %}
+                {#- Open when the stored preference says so, but always open when
+                    it holds the page being viewed — never hide where you are. -#}
+                {% set holds_active = item.children|selectattr('endpoint', 'equalto', request.endpoint)|list|length > 0 %}
+                <button type="button" class="side-group {% if holds_active %}has-active{% endif %}"
+                        data-nav-group="{{ item.key }}" aria-expanded="{{ 'true' if holds_active else 'false' }}">
+                    <span class="si">{{ icon(item.icon) }}</span>
+                    <span class="lbl">{{ item.label }}</span>
+                    {% set total = namespace(n=0) %}
+                    {% for child in item.children %}
+                        {% set total.n = total.n + (badge_count(child.endpoint)|trim|int) %}
+                    {% endfor %}
+                    {% if total.n %}<span class="count">{{ total.n }}</span>{% endif %}
+                    <span class="caret">&#9654;</span>
+                </button>
+                <div class="side-children">
+                    {% for child in item.children %}
+                    <a href="{{ url_for(child.endpoint) }}"
+                       class="side-link {% if request.endpoint == child.endpoint %}active{% endif %}">
+                        <span class="si">{{ icon(child.icon) }}</span>
+                        <span class="lbl">{{ child.label }}</span>
+                        {% set n = badge_count(child.endpoint)|trim|int %}
+                        {% if n %}<span class="count">{{ n }}</span>{% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+            <a href="{{ url_for(item.endpoint) }}"
+               class="side-link {% if request.endpoint == item.endpoint %}active{% endif %}">
+                <span class="si">{{ icon(item.icon) }}</span>
+                <span class="lbl">{{ item.label }}</span>
+                {% set n = badge_count(item.endpoint)|trim|int %}
+                {% if n %}<span class="count">{{ n }}</span>{% endif %}
+            </a>
+            {% endif %}
+            {% endfor %}
+        </nav>
+
+        <div class="app-side-foot">
+            <div class="app-user">
+                <span class="av">{{ session.user[0]|upper }}</span>
+                <div style="min-width:0">
+                    <div class="nm">{{ session.user }}</div>
+                    <div class="rl">{{ role_label }}</div>
+                </div>
+            </div>
+            <form method="post" action="{{ url_for('logout') }}" style="margin-top:8px">
+                <button type="submit" class="btn btn-ghost btn-block">
+                    <span class="si">{{ icon('log-out') }}</span> <span class="lbl">Logout</span>
+                </button>
+            </form>
+        </div>
+    </aside>
+
+    <div class="app-body">
+        <header class="app-header">
+            {% include "_home_button.html" %}
+            <div class="divider"></div>
+            <div class="ptitle">Team Lead Interface &mdash; Chargeback Defense Platform</div>
+            <div class="spacer"></div>
+            <div class="who">{{ session.user }} ({{ role_label }})</div>
+            <div class="brand-logo">
+                <img src="{{ url_for('static', filename='img/straive-logo.png') }}" alt="Straive">
+            </div>
+        </header>
+
+        <main class="app-main">
+            {% include "_flashes.html" %}
+            <div class="wrap">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script>
+function toast(msg, ok) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast ' + (ok ? 'ok' : 'err');
+    el.style.display = 'block';
+    clearTimeout(el._t);
+    el._t = setTimeout(function () { el.style.display = 'none'; }, 3200);
+}
+
+/* Sidebar groups. Open state is a per-browser display preference, so it
+   lives in localStorage rather than the session — no other user can see it
+   and it should not follow a lead between machines.
+
+   A group already marked has-active holds the page being viewed and is left
+   alone on load: the stored value must never collapse the page you are on.
+   Toggling it by hand afterwards still writes, so the choice sticks. */
+document.querySelectorAll('[data-nav-group]').forEach(function (btn) {
+    var key = 'nav:' + btn.getAttribute('data-nav-group');
+    if (!btn.classList.contains('has-active')) {
+        var saved = localStorage.getItem(key);
+        if (saved !== null) { btn.setAttribute('aria-expanded', saved); }
+    }
+    btn.addEventListener('click', function () {
+        var open = btn.getAttribute('aria-expanded') !== 'true';
+        btn.setAttribute('aria-expanded', String(open));
+        localStorage.setItem(key, String(open));
+    });
+});
+</script>
+{% include "_side_toggle.html" %}
+{% include "_live_refresh.html" %}
+{% block extra_js %}{% endblock %}
+</body>
+</html>

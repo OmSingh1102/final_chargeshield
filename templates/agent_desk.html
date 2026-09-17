@@ -1,0 +1,582 @@
+{% extends "base.html" %}
+{% block title %}Admin Page - ChargeShield AI{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ── Header ── */
+    .desk-head { display: flex; justify-content: space-between; align-items: flex-end;
+                 gap: 20px; flex-wrap: wrap; margin-bottom: 22px; }
+    .desk-head h2 { font-size: 22px; font-weight: 700; }
+    .desk-head p { color: var(--ink-soft, #8a7365); font-size: 13.5px; margin-top: 2px; }
+    .viewing-as { display: flex; align-items: center; gap: 10px; }
+    .viewing-as label { font-size: 11.5px; font-weight: 700; text-transform: uppercase;
+                        letter-spacing: .4px; color: var(--ink-soft, #8a7365); }
+    .viewing-as select { padding: 9px 14px; border: 1px solid var(--line-strong);
+                         border-radius: 10px; font-size: 14px; font-weight: 600;
+                         background: var(--surface, #fff); min-width: 190px; }
+
+    /* ── Productivity tiles ── */
+    .prod-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+                  gap: 12px; margin-bottom: 12px; }
+    .prod-tile { background: var(--surface, #fff); border: 1px solid var(--line); border-left: 4px solid var(--brand);
+                 border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
+    .prod-tile .pv { font-size: 25px; font-weight: 800; color: var(--ink); line-height: 1.1; }
+    .prod-tile .pl { font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+                     letter-spacing: .4px; color: var(--ink-soft, #8a7365); margin-top: 3px; }
+    .prod-tile.green { border-left-color: #2e7d32; } .prod-tile.green .pv { color: #2e7d32; }
+    .prod-tile.amber { border-left-color: #e65100; } .prod-tile.amber .pv { color: #e65100; }
+    .prod-tile.grey  { border-left-color: var(--ink-faint, #b0998a); } .prod-tile.grey .pv { color: var(--ink-soft-2, #7a6558); }
+    .prod-note { font-size: 11.5px; color: var(--c-a89383, #a89383); margin-bottom: 22px; }
+
+    /* ── Filter bar ── */
+    .filter-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+                  background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 12px;
+                  padding: 12px 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+            background: var(--brand-tint); color: var(--brand-dark); border-radius: 999px;
+            font-size: 11.5px; font-weight: 700; }
+    .chip button { border: none; background: none; color: inherit; cursor: pointer;
+                   font-size: 13px; line-height: 1; padding: 0; }
+    .result-count { margin-left: auto; font-size: 12.5px; color: var(--ink-soft, #8a7365); font-weight: 600; }
+    .link-btn { border: none; background: none; color: var(--brand); font-size: 12.5px;
+                font-weight: 600; cursor: pointer; text-decoration: underline; padding: 0; }
+
+    /* ── Queue table ── */
+    .queue-wrap { background: var(--surface, #fff); border: 1px solid var(--line); border-left: 5px solid var(--brand);
+                  border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+    .queue-tbl { width: 100%; border-collapse: collapse; }
+    .queue-tbl thead th { background: var(--c-fffbf8, #fffbf8); padding: 13px 14px; font-size: 11px; font-weight: 700;
+                          text-transform: uppercase; letter-spacing: .5px; color: var(--ink-soft, #8a7365);
+                          text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    .queue-tbl tbody td { padding: 13px 14px; font-size: 13px; border-bottom: 1px solid var(--surface-2, #f7efe9);
+                          vertical-align: middle; }
+    .queue-tbl tbody tr:hover { background: var(--brand-wash); }
+    .queue-tbl .cid { font-family: 'Courier New', monospace; font-weight: 700; color: var(--brand-dark); }
+    .queue-tbl .amt { font-weight: 700; white-space: nowrap; }
+    .empty-row td { text-align: center; color: var(--c-a89383, #a89383); padding: 40px; font-size: 13.5px; }
+
+    .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px;
+            font-weight: 700; white-space: nowrap; }
+    .pill.stage { background: var(--surface-2, #f7efe9); color: var(--ink-soft-2, #7a6558); }
+    .pill.net   { background: var(--brand-tint); color: var(--brand-dark); }
+    .pill.pending      { background: var(--c-fff8e1, #fff8e1); color: #f57f17; }
+    .pill.contested    { background: var(--c-e7f6ec, #e7f6ec); color: #2e7d32; }
+    .pill.notfought    { background: var(--c-ffe9e6, #ffe9e6); color: #c62828; }
+    .pill.waitingforpod{ background: #fff3e0; color: #e65100; }
+    .pri-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .pri-dot.high { background: #c62828; } .pri-dot.medium { background: #e65100; }
+    .pri-dot.low { background: var(--ink-faint, #b0998a); }
+
+    .row-btn { padding: 6px 14px; border: 1px solid var(--brand); background: var(--surface, #fff);
+               color: var(--brand); border-radius: 8px; font-size: 12px; font-weight: 600;
+               cursor: pointer; font-family: inherit; white-space: nowrap; }
+    .row-btn:hover { background: var(--brand); color: var(--on-accent, #fff); }
+
+    /* ── Modals ── */
+    .modal-back { position: fixed; inset: 0; background: rgba(43,27,18,.45); display: none;
+                  align-items: flex-start; justify-content: center; z-index: 500;
+                  padding: 40px 20px; overflow-y: auto; }
+    .modal-back.open { display: flex; }
+    .modal { background: var(--surface, #fff); border-radius: 16px; width: 100%; max-width: 720px;
+             box-shadow: 0 12px 40px rgba(43,27,18,.3); }
+    .modal-hd { display: flex; justify-content: space-between; align-items: center;
+                padding: 20px 26px; border-bottom: 1px solid var(--line); }
+    .modal-hd h3 { font-size: 18px; font-weight: 700; }
+    .modal-x { border: none; background: none; font-size: 24px; line-height: 1; cursor: pointer;
+               color: var(--c-a89383, #a89383); padding: 0 4px; }
+    .modal-bd { padding: 24px 26px; }
+    .modal-ft { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 26px;
+                border-top: 1px solid var(--line); background: var(--c-fffbf8, #fffbf8);
+                border-radius: 0 0 16px 16px; }
+
+    .f-sec-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+    .f-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; margin-bottom: 22px; }
+    .f-field label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-soft, #8a7365); margin-bottom: 5px; }
+    .f-field input, .f-field select {
+        width: 100%; padding: 9px 12px; font-size: 13.5px; font-family: inherit; color: var(--ink);
+        border: 1px solid var(--line-strong); border-radius: 9px; background: var(--c-fffbf8, #fffbf8); }
+    .f-field input:focus, .f-field select:focus {
+        outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(244,97,26,.14); }
+    .f-pair { display: flex; gap: 8px; }
+
+    .btn-primary { padding: 10px 22px; background: var(--brand); color: var(--on-accent, #fff); border: none;
+                   border-radius: 10px; font-size: 14px; font-weight: 700; font-family: inherit;
+                   cursor: pointer; box-shadow: 0 3px 10px rgba(244,97,26,.26); }
+    .btn-primary:hover { background: var(--brand-dark); }
+    .btn-ghost { padding: 10px 22px; background: var(--surface, #fff); border: 1px solid var(--line-strong);
+                 border-radius: 10px; font-size: 14px; font-weight: 600; font-family: inherit;
+                 color: var(--c-7a5c49, #7a5c49); cursor: pointer; }
+    .btn-ghost:hover { border-color: var(--brand); color: var(--brand-dark); }
+
+    /* Case detail read-out */
+    .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin-bottom: 20px; }
+    .kv { border-bottom: 1px solid var(--surface-2, #f7efe9); padding-bottom: 7px; }
+    .kv .k { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+             color: var(--c-a89383, #a89383); }
+    .kv .v { font-size: 13.5px; font-weight: 600; color: var(--ink); word-break: break-word; }
+    .kv .v.mono { font-family: 'Courier New', monospace; font-size: 12.5px; }
+    .modal-sub { font-size: 12px; color: var(--ink-soft, #8a7365); margin: -8px 0 16px; }
+    .ev-list { list-style: none; padding: 0; margin: 8px 0 0; }
+    .ev-list li { font-size: 12.5px; color: var(--ink-soft-2, #7a6558); padding: 5px 0; border-bottom: 1px solid var(--surface-2, #f7efe9); }
+    .save-note { font-size: 12.5px; font-weight: 600; margin-right: auto; align-self: center; }
+    .save-note.ok { color: #2e7d32; } .save-note.err { color: #c62828; }
+
+    @media (max-width: 860px) { .f-grid, .kv-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="desk-head">
+    <div>
+        <h2>Admin Page</h2>
+        <p>Your pending case queue and personal productivity. {{ d.total_cases }} cases loaded across {{ d.agents|length }} agents.</p>
+    </div>
+    <div class="viewing-as">
+        <label for="agent-select">Viewing as</label>
+        <select id="agent-select" onchange="switchAgent()">
+            {% for a in d.agents %}
+            <option value="{{ a }}" {% if a == active_agent %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- ═══ My productivity ═══ -->
+<div class="prod-strip" id="prod-strip"></div>
+<div class="prod-note" id="prod-note"></div>
+
+<!-- ═══ Filter bar ═══ -->
+<div class="filter-bar">
+    <button type="button" class="btn-primary" onclick="openFilters()">&#128269; Search &amp; Filter</button>
+    <div id="active-chips" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+    <button type="button" class="link-btn" id="clear-inline" onclick="clearFilters(true)" style="display:none;">Clear all</button>
+    <span class="result-count" id="result-count"></span>
+</div>
+
+<!-- ═══ Queue ═══ -->
+<div class="queue-wrap">
+    <table class="queue-tbl" id="queue">
+        <thead>
+            <tr>
+                <th>Dispute ID</th>
+                <th>Stage</th>
+                <th>Card</th>
+                <th>Category</th>
+                <th>RC</th>
+                <th>Amount</th>
+                <th>Dispute Date</th>
+                <th>Due</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody id="queue-body">
+            {% for t in d.tasks %}
+            <tr data-agent="{{ t.assigned_to }}"
+                data-case="{{ t.case_id }}"
+                data-stage="{{ t.stage }}"
+                data-network="{{ t.network }}"
+                data-category="{{ t.category }}"
+                data-rc="{{ t.reason_code }}"
+                data-amount="{{ t.amount }}"
+                data-date="{{ t.due_date }}"
+                data-status="{{ t.status }}"
+                data-desc="{{ t.reason_description }}"
+                data-merchant="{{ t.merchant_ref }}"
+                data-currency="{{ t.currency }}"
+                data-disputedate="{{ t.dispute_date }}"
+                data-txndate="{{ t.transaction_date }}"
+                data-refund="{{ t.refund_type }}"
+                data-winprob="{{ t.win_probability }}"
+                data-evidence="{{ t.evidence_pct }}"
+                data-suggested="{{ t.suggested_evidence|join('|') }}">
+                <td><span class="cid">{{ t.case_id }}</span></td>
+                <td><span class="pill stage">{{ t.stage }}</span></td>
+                <td><span class="pill net">{{ t.network }}</span></td>
+                <td>{{ t.category|title }}</td>
+                <td>{{ reason_label(t.reason_code, t.network) }}</td>
+                {# The coloured dot here was a High/Medium/Low bucket of this
+                   same amount — the figure beside it already says it. #}
+                <td class="amt">{{ t.currency }} {{ "%.2f"|format(t.amount) }}</td>
+                <td>{{ t.dispute_date[:10] }}</td>
+                <td>{{ t.due_date }}</td>
+                <td><span class="pill {{ t.status|replace(' ','')|lower }} js-status">{{ t.status }}</span></td>
+                <td><button type="button" class="row-btn" onclick="openCase(this.closest('tr'))">Action</button></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ═══ Search & Filter modal ═══ -->
+<div class="modal-back" id="filter-modal" onclick="if(event.target===this)closeFilters()">
+    <div class="modal">
+        <div class="modal-hd">
+            <h3>Search &amp; Filter Cases</h3>
+            <button type="button" class="modal-x" onclick="closeFilters()">&times;</button>
+        </div>
+        <div class="modal-bd">
+            <div class="f-sec-title">Quick Search</div>
+            <div class="f-grid">
+                <div class="f-field">
+                    <label for="f-term">Search Term</label>
+                    <input type="text" id="f-term" placeholder="Enter a value">
+                </div>
+                <div class="f-field">
+                    <label for="f-by">Search By</label>
+                    <select id="f-by">
+                        <option value="case">Dispute ID</option>
+                        <option value="desc">Reason Message</option>
+                        <option value="merchant">Merchant ID</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="f-sec-title">Advanced Filters</div>
+            <div class="f-grid">
+                <div class="f-field">
+                    <label for="f-network">Card Type</label>
+                    <select id="f-network">
+                        <option value="All">All</option>
+                        {% for n in d.networks %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="f-field">
+                    <label>Date Range (Chargeback Due)</label>
+                    <div class="f-pair">
+                        <input type="date" id="f-from"><input type="date" id="f-to">
+                    </div>
+                </div>
+
+                <div class="f-field">
+                    <label for="f-category">Category</label>
+                    <select id="f-category">
+                        <option value="All">All Categories</option>
+                        {% for c in d.categories %}<option value="{{ c }}">{{ c|title }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="f-field">
+                    <label for="f-rc">Reason Code</label>
+                    <input type="text" id="f-rc" placeholder="e.g. 10.4">
+                </div>
+
+                <div class="f-field">
+                    <label for="f-stage">Dispute Stage</label>
+                    <select id="f-stage">
+                        <option value="All">All Stages</option>
+                        {% for s in d.stages %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="f-field">
+                    <label>Dollar Amount Range</label>
+                    <div class="f-pair">
+                        <input type="number" id="f-min" placeholder="Min $" step="0.01">
+                        <input type="number" id="f-max" placeholder="Max $" step="0.01">
+                    </div>
+                </div>
+
+                <div class="f-field">
+                    <label for="f-status">Status</label>
+                    <select id="f-status">
+                        <option value="All">All Statuses</option>
+                        {% for s in d.statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="f-field">
+                    <label for="f-agent">Agent Name</label>
+                    <select id="f-agent">
+                        <option value="All">All Agents</option>
+                        {% for a in d.agents %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="modal-ft">
+            <button type="button" class="btn-ghost" onclick="clearFilters(false)">Clear Filters</button>
+            <button type="button" class="btn-primary" onclick="applyFilters()">Apply Search &amp; Filters</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ Case action modal ═══ -->
+<div class="modal-back" id="case-modal" onclick="if(event.target===this)closeCase()">
+    <div class="modal">
+        <div class="modal-hd">
+            <h3 id="cm-title">Case</h3>
+            <button type="button" class="modal-x" onclick="closeCase()">&times;</button>
+        </div>
+        <div class="modal-bd">
+            <div class="kv-grid" id="cm-fields"></div>
+            <div class="modal-sub">Fields above are read directly from the ingested sheet.</div>
+
+            <div class="f-sec-title">Action Taken</div>
+            <div class="f-grid">
+                <div class="f-field">
+                    <label for="cm-action">Status</label>
+                    <select id="cm-action">
+                        <option value="">Select Action</option>
+                        {% for a in actions %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="f-field">
+                    <label for="cm-file">Manual Evidence Upload</label>
+                    <input type="file" id="cm-file">
+                </div>
+            </div>
+            <div id="cm-evidence"></div>
+        </div>
+        <div class="modal-ft">
+            <span class="save-note" id="cm-note"></span>
+            <button type="button" class="btn-ghost" onclick="closeCase()">Cancel</button>
+            <button type="button" class="btn-primary" onclick="saveCase()">Save</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const PER_AGENT = {{ d.per_agent | tojson }};
+const rows = () => Array.from(document.querySelectorAll('#queue-body tr'));
+let filters = {};
+let currentRow = null;
+
+/* ── Productivity tiles for the selected agent ── */
+function renderProductivity() {
+    const agent = document.getElementById('agent-select').value;
+    const p = PER_AGENT[agent];
+    const strip = document.getElementById('prod-strip');
+    if (!p) { strip.innerHTML = ''; return; }
+
+    const tiles = [
+        ['grey',  p.assigned,          'Assigned to me'],
+        ['amber', p.open,              'Open'],
+        ['green', p.contested,         'Contested'],
+        ['grey',  p.waiting_pod,       'Waiting for POD'],
+        ['grey',  p.not_fought,        'Not Fought'],
+        ['grey',  '$' + p.total_value.toLocaleString(undefined, {maximumFractionDigits: 0}), 'Value handled'],
+        ['grey',  p.avg_win_prob + '%', 'Avg win prob'],
+    ];
+    strip.innerHTML = tiles.map(([cls, v, l]) =>
+        `<div class="prod-tile ${cls}"><div class="pv">${v}</div><div class="pl">${l}</div></div>`).join('');
+
+    const stages = Object.entries(p.by_stage).map(([k, v]) => `${k} ${v}`).join(' · ');
+    const nets = Object.entries(p.by_network).map(([k, v]) => `${k} ${v}`).join(' · ');
+    document.getElementById('prod-note').textContent =
+        `Stages: ${stages}  |  Networks: ${nets}  |  Evidence uploaded this session: ${p.evidence_uploaded}`;
+}
+
+function switchAgent() { renderProductivity(); applyFilters(true); }
+
+/* ── Filtering ── */
+function openFilters()  { document.getElementById('filter-modal').classList.add('open'); }
+function closeFilters() { document.getElementById('filter-modal').classList.remove('open'); }
+
+function applyFilters(keepOpen) {
+    filters = {
+        term: document.getElementById('f-term').value.trim().toLowerCase(),
+        by: document.getElementById('f-by').value,
+        network: document.getElementById('f-network').value,
+        category: document.getElementById('f-category').value,
+        rc: document.getElementById('f-rc').value.trim().toLowerCase(),
+        stage: document.getElementById('f-stage').value,
+        status: document.getElementById('f-status').value,
+        agent: document.getElementById('f-agent').value,
+        from: document.getElementById('f-from').value,
+        to: document.getElementById('f-to').value,
+        min: parseFloat(document.getElementById('f-min').value),
+        max: parseFloat(document.getElementById('f-max').value),
+    };
+    runFilter();
+    if (!keepOpen) closeFilters();
+}
+
+function runFilter() {
+    // The "Viewing as" agent scopes the queue; the Agent filter can widen it to all.
+    const viewing = document.getElementById('agent-select').value;
+    const agentScope = (filters.agent && filters.agent !== 'All') ? filters.agent
+                     : (filters.agent === 'All' ? null : viewing);
+
+    let shown = 0;
+    rows().forEach(r => {
+        const d = r.dataset;
+        const amt = parseFloat(d.amount);
+        let ok = true;
+
+        if (agentScope && d.agent !== agentScope) ok = false;
+        if (ok && filters.term) {
+            const hay = {case: d.case, desc: d.desc, merchant: d.merchant}[filters.by] || '';
+            if (!hay.toLowerCase().includes(filters.term)) ok = false;
+        }
+        if (ok && filters.network && filters.network !== 'All' && d.network !== filters.network) ok = false;
+        if (ok && filters.category && filters.category !== 'All' && d.category !== filters.category) ok = false;
+        if (ok && filters.stage && filters.stage !== 'All' && d.stage !== filters.stage) ok = false;
+        if (ok && filters.status && filters.status !== 'All' && d.status !== filters.status) ok = false;
+        if (ok && filters.rc && !d.rc.toLowerCase().includes(filters.rc)) ok = false;
+        if (ok && !isNaN(filters.min) && amt < filters.min) ok = false;
+        if (ok && !isNaN(filters.max) && amt > filters.max) ok = false;
+        if (ok && filters.from && (!d.date || d.date < filters.from)) ok = false;
+        if (ok && filters.to && (!d.date || d.date > filters.to)) ok = false;
+
+        r.style.display = ok ? '' : 'none';
+        if (ok) shown++;
+    });
+
+    document.getElementById('result-count').textContent =
+        `${shown} of {{ d.total_cases }} cases`;
+    renderChips();
+
+    const body = document.getElementById('queue-body');
+    let empty = document.getElementById('empty-row');
+    if (!shown) {
+        if (!empty) {
+            empty = document.createElement('tr');
+            empty.id = 'empty-row';
+            empty.className = 'empty-row';
+            empty.innerHTML = '<td colspan="10">No cases match these filters.</td>';
+            body.appendChild(empty);
+        }
+        empty.style.display = '';
+    } else if (empty) {
+        empty.style.display = 'none';
+    }
+}
+
+function renderChips() {
+    const labels = {network: 'Card', category: 'Category', stage: 'Stage',
+                    status: 'Status', agent: 'Agent', rc: 'RC', term: 'Search',
+                    from: 'From', to: 'To'};
+    const chips = [];
+    for (const [k, label] of Object.entries(labels)) {
+        const v = filters[k];
+        if (v && v !== 'All') chips.push(`<span class="chip">${label}: ${v}<button onclick="dropFilter('${k}')">&times;</button></span>`);
+    }
+    if (!isNaN(filters.min)) chips.push(`<span class="chip">Min $${filters.min}<button onclick="dropFilter('min')">&times;</button></span>`);
+    if (!isNaN(filters.max)) chips.push(`<span class="chip">Max $${filters.max}<button onclick="dropFilter('max')">&times;</button></span>`);
+    document.getElementById('active-chips').innerHTML = chips.join('');
+    document.getElementById('clear-inline').style.display = chips.length ? '' : 'none';
+}
+
+function dropFilter(key) {
+    const ids = {network: 'f-network', category: 'f-category', stage: 'f-stage',
+                 status: 'f-status', agent: 'f-agent', rc: 'f-rc', term: 'f-term',
+                 from: 'f-from', to: 'f-to', min: 'f-min', max: 'f-max'};
+    const el = document.getElementById(ids[key]);
+    if (el) el.value = el.tagName === 'SELECT' ? 'All' : '';
+    applyFilters(true);
+}
+
+function clearFilters(alsoRun) {
+    ['f-term', 'f-rc', 'f-from', 'f-to', 'f-min', 'f-max'].forEach(id => document.getElementById(id).value = '');
+    ['f-network', 'f-category', 'f-stage', 'f-status', 'f-agent'].forEach(id => document.getElementById(id).value = 'All');
+    document.getElementById('f-by').value = 'case';
+    if (alsoRun !== false) applyFilters(true);
+}
+
+/* ── Case action modal ── */
+function openCase(row) {
+    currentRow = row;
+    const d = row.dataset;
+    document.getElementById('cm-title').textContent = d.case;
+    document.getElementById('cm-note').textContent = '';
+    document.getElementById('cm-file').value = '';
+    document.getElementById('cm-action').value = d.status === 'Pending' ? '' : d.status;
+
+    const fields = [
+        ['Dispute ID', d.case, true], ['Merchant ID', d.merchant, true],
+        ['Dispute Stage', d.stage], ['Card Type', d.network],
+        ['Category', d.category], ['Reason Code', d.rc],
+        ['Amount', d.currency + ' ' + parseFloat(d.amount).toFixed(2)], ['Win Probability', d.winprob + '%'],
+        ['Dispute Date', d.disputedate || '—'], ['Due Date', d.date || '—'],
+        ['Transaction Date', d.txndate || '—'], ['Refund Pay Type', d.refund || '—'],
+        ['Evidence Completeness', d.evidence + '%'], ['Assigned To', d.agent],
+    ];
+    document.getElementById('cm-fields').innerHTML = fields.map(([k, v, mono]) =>
+        `<div class="kv"><div class="k">${k}</div><div class="v${mono ? ' mono' : ''}">${v}</div></div>`).join('') +
+        `<div class="kv" style="grid-column:1/-1;"><div class="k">Reason Message</div><div class="v">${d.desc || '—'}</div></div>`;
+
+    document.getElementById('cm-evidence').innerHTML =
+        `<div style="font-size:12px; font-weight:700; color:#8a7365; margin-top:6px;">SUGGESTED EVIDENCE</div>
+         <ul class="ev-list">${d.suggested.split('|').map(f => `<li>&#128206; ${f}</li>`).join('')}</ul>`;
+
+    document.getElementById('case-modal').classList.add('open');
+}
+
+function closeCase() { document.getElementById('case-modal').classList.remove('open'); currentRow = null; }
+
+async function saveCase() {
+    if (!currentRow) return;
+    const caseId = currentRow.dataset.case;
+    const action = document.getElementById('cm-action').value;
+    const file = document.getElementById('cm-file').files[0];
+    const note = document.getElementById('cm-note');
+
+    if (!action && !file) { note.className = 'save-note err'; note.textContent = 'Pick an action or attach a file.'; return; }
+
+    /* Same guard as the agent queue: conceding refunds real money, so it is
+       the one action that asks twice. */
+    if (action === 'Not Fought') {
+        const sure = window.confirm('Concede ' + caseId + '?\n\n' +
+            'The chargeback is accepted: the disputed amount is refunded and ' +
+            'no rebuttal will be filed.');
+        if (!sure) { return; }
+    }
+
+    try {
+        if (file) {
+            const fd = new FormData();
+            fd.append('case_id', caseId);
+            fd.append('agent', document.getElementById('agent-select').value);
+            fd.append('evidence_file', file);
+            const r = await fetch('{{ url_for("agent_desk_evidence") }}', {method: 'POST', body: fd});
+            const j = await r.json();
+            if (!j.ok) throw new Error(j.error || 'Upload failed');
+        }
+        if (action) {
+            const r = await fetch('{{ url_for("agent_desk_action") }}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({case_id: caseId, action: action}),
+            });
+            const j = await r.json();
+            if (!j.ok) throw new Error(j.error || 'Save failed');
+
+            // Update the row and the productivity tiles in place.
+            const prev = currentRow.dataset.status;
+            currentRow.dataset.status = action;
+            const badge = currentRow.querySelector('.js-status');
+            badge.textContent = action;
+            badge.className = 'pill js-status ' + action.replace(/ /g, '').toLowerCase();
+            bumpCounts(currentRow.dataset.agent, prev, action);
+        }
+        note.className = 'save-note ok';
+        note.textContent = 'Saved.';
+        renderProductivity();
+        runFilter();
+        setTimeout(closeCase, 700);
+    } catch (e) {
+        note.className = 'save-note err';
+        note.textContent = e.message;
+    }
+}
+
+/* Keep the in-page metrics honest after an action, without a reload. */
+function bumpCounts(agent, from, to) {
+    const p = PER_AGENT[agent];
+    if (!p) return;
+    const key = {Contested: 'contested', 'Not Fought': 'not_fought', 'Waiting for POD': 'waiting_pod'};
+    const openish = s => !s || s === 'Pending';
+    if (key[from]) p[key[from]]--;
+    if (key[to]) p[key[to]]++;
+    if (openish(from) && !openish(to)) { p.open--; p.actioned++; }
+    if (!openish(from) && openish(to)) { p.open++; p.actioned--; }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    clearFilters(false);
+    filters = {agent: null};
+    renderProductivity();
+    runFilter();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,565 @@
+{% extends "base.html" %}
+{% block title %}AI Pipeline - ChargeShield AI{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ─── Stat Cards ─── */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 30px;
+    }
+    .stat-card {
+        background: var(--surface, #fff);
+        border-radius: 12px;
+        padding: 20px 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        text-align: center;
+    }
+    .stat-card .stat-value {
+        font-size: 36px;
+        font-weight: 800;
+        line-height: 1;
+        margin-bottom: 6px;
+    }
+    .stat-card .stat-label {
+        font-size: 13px;
+        color: var(--c-888888, #888);
+        font-weight: 500;
+    }
+    .stat-card.purple .stat-value { color: #b45309; }
+    .stat-card.green .stat-value { color: #2e7d32; }
+    .stat-card.orange .stat-value { color: #f57f17; }
+    .stat-card.red .stat-value { color: #c62828; }
+    .stat-card.blue .stat-value { color: var(--brand, #f4611a); }
+
+    /* ─── Pipeline Diagram ─── */
+    .pipeline-section {
+        background: var(--surface, #fff);
+        border-radius: 12px;
+        padding: 30px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        margin-bottom: 30px;
+    }
+    .pipeline-section h3 {
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 24px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .pipeline-flow {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        overflow-x: auto;
+        padding: 10px 0;
+    }
+    .pipeline-node {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 140px;
+        flex-shrink: 0;
+    }
+    .pipeline-box {
+        width: 130px;
+        padding: 16px 12px;
+        border-radius: 12px;
+        text-align: center;
+        font-size: 12px;
+        font-weight: 600;
+        position: relative;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .pipeline-box .p-icon { font-size: 24px; display: block; margin-bottom: 6px; }
+    .pipeline-box .p-label { display: block; }
+    .pipeline-box .p-count {
+        display: block;
+        font-size: 18px;
+        font-weight: 800;
+        margin-top: 4px;
+    }
+    .pipeline-box.ingest { background: var(--brand-tint, #ffeadd); color: var(--brand, #f4611a); border: 2px solid var(--c-ffc6a3, #ffc6a3); }
+    .pipeline-box.classify { background: #fef3e2; color: #b45309; border: 2px solid var(--c-f0c48a, #f0c48a); }
+    .pipeline-box.auto { background: #e8f5e9; color: #2e7d32; border: 2px solid #a5d6a7; }
+    .pipeline-box.hitl { background: #fff3e0; color: #e65100; border: 2px solid var(--c-ffcc80, #ffcc80); }
+    .pipeline-box.accept { background: #fce4ec; color: #c62828; border: 2px solid #ef9a9a; }
+    .pipeline-box.outcome { background: var(--c-fff1e6, #fff1e6); color: var(--brand-deep, #9a3412); border: 2px solid var(--c-f2b48a, #f2b48a); }
+
+    .pipeline-arrow {
+        display: flex;
+        align-items: center;
+        color: var(--c-cccccc, #ccc);
+        font-size: 28px;
+        padding: 0 4px;
+        flex-shrink: 0;
+    }
+    .pipeline-arrow .arrow-label {
+        font-size: 10px;
+        color: var(--c-aaaaaa, #aaa);
+        text-align: center;
+        display: block;
+        margin-top: -8px;
+    }
+
+    /* ─── Split Arrow ─── */
+    .pipeline-split {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        position: relative;
+    }
+    .pipeline-split::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--c-dddddd, #ddd);
+    }
+
+    /* ─── Processor Cards ─── */
+    .processor-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+        margin-bottom: 30px;
+    }
+    .proc-card {
+        background: var(--surface, #fff);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        border-top: 4px solid var(--brand, #f4611a);
+    }
+    .proc-card.adyen { border-top-color: var(--c-0abf53, #0abf53); }
+    .proc-card.braintree { border-top-color: var(--c-4285f4, #4285f4); }
+    .proc-card.worldpay { border-top-color: var(--c-e91e63, #e91e63); }
+    .proc-card.stripe { border-top-color: var(--c-635bff, #635bff); }
+
+    .proc-card h4 {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .proc-stat-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+        font-size: 13px;
+        border-bottom: 1px solid var(--c-f5f5f5, #f5f5f5);
+    }
+    .proc-stat-row:last-child { border-bottom: none; }
+    .proc-stat-row .ps-label { color: var(--c-888888, #888); }
+    .proc-stat-row .ps-value { font-weight: 700; color: var(--ink, #2b1b12); }
+
+    .proc-bar {
+        display: flex;
+        height: 8px;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 12px;
+    }
+    .proc-bar .bar-auto { background: #2e7d32; }
+    .proc-bar .bar-hitl { background: #f57f17; }
+    .proc-bar .bar-accept { background: #c62828; }
+
+    /* ─── Reason Code Table ─── */
+    .rc-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .rc-table thead th {
+        background: var(--c-fdf9f6, #fdf9f6);
+        padding: 12px 16px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--c-888888, #888);
+        text-align: left;
+        border-bottom: 2px solid var(--c-e8e8e8, #e8e8e8);
+    }
+    .rc-table tbody td {
+        padding: 12px 16px;
+        font-size: 14px;
+        border-bottom: 1px solid var(--c-f0f0f0, #f0f0f0);
+    }
+    .rc-table tbody tr:hover { background: var(--brand-wash, #fff7f2); }
+
+    .confidence-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .confidence-bar .bar-track {
+        flex: 1;
+        height: 8px;
+        background: var(--c-eeeeee, #eee);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    .confidence-bar .bar-fill {
+        height: 100%;
+        border-radius: 4px;
+    }
+    .confidence-bar .bar-label {
+        font-weight: 700;
+        font-size: 13px;
+        min-width: 35px;
+    }
+
+    /* ─── Case Queue Table ─── */
+    .queue-tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 16px;
+    }
+    .queue-tab {
+        padding: 8px 20px;
+        border-radius: 8px 8px 0 0;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid var(--c-dddddd, #ddd);
+        border-bottom: none;
+        background: var(--c-f5f5f5, #f5f5f5);
+        color: var(--c-888888, #888);
+    }
+    .queue-tab.active { background: var(--surface, #fff); color: var(--ink, #2b1b12); border-bottom: 2px solid var(--surface, #fff); margin-bottom: -1px; }
+    .queue-tab .tab-count {
+        display: inline-block;
+        background: var(--c-eeeeee, #eee);
+        padding: 1px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        margin-left: 4px;
+    }
+    .queue-tab.active .tab-count { background: var(--brand, #f4611a); color: var(--on-accent, #fff); }
+
+    .routing-badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+    .routing-badge.auto_represent { background: #e8f5e9; color: #2e7d32; }
+    .routing-badge.hitl_review { background: #fff3e0; color: #e65100; }
+    .routing-badge.accept_refund { background: #fce4ec; color: #c62828; }
+
+    .signal-pills {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+    .signal-pill {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+    }
+    .signal-pill.positive { background: #e8f5e9; color: #2e7d32; }
+    .signal-pill.negative { background: #fce4ec; color: #c62828; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-size: 22px; font-weight: 700;">AI Classification Pipeline</h2>
+    <p style="color: #666; font-size: 14px;">Centralized chargeback aggregation across processors with ML-powered case routing</p>
+</div>
+
+<!-- ═══ Top-Level Stats ═══ -->
+<div class="stats-row">
+    <div class="stat-card blue">
+        <div class="stat-value">{{ stats.total_cases }}</div>
+        <div class="stat-label">Total Cases Ingested</div>
+    </div>
+    <div class="stat-card green">
+        <div class="stat-value">{{ stats.auto_represent }}</div>
+        <div class="stat-label">Auto-Represent</div>
+    </div>
+    <div class="stat-card orange">
+        <div class="stat-value">{{ stats.hitl_review }}</div>
+        <div class="stat-label">HITL Review</div>
+    </div>
+    <div class="stat-card red">
+        <div class="stat-value">{{ stats.accept_refund }}</div>
+        <div class="stat-label">Accept Recommended</div>
+    </div>
+    <div class="stat-card purple">
+        <div class="stat-value">{{ stats.avg_confidence }}%</div>
+        <div class="stat-label">Avg ML Confidence</div>
+    </div>
+    <div class="stat-card blue">
+        <div class="stat-value">${{ "{:,.0f}".format(stats.total_amount) }}</div>
+        <div class="stat-label">Total Disputed</div>
+    </div>
+</div>
+
+<!-- ═══ Visual Pipeline Diagram ═══ -->
+<div class="pipeline-section">
+    <h3>{{ icon('settings') }} Automated Classification Pipeline</h3>
+    <div class="pipeline-flow">
+        <!-- Ingest -->
+        <div class="pipeline-node">
+            <div class="pipeline-box ingest">
+                <span class="p-icon">&#128229;</span>
+                <span class="p-label">Multi-Processor Ingest</span>
+                <span class="p-count">{{ stats.total_cases }}</span>
+            </div>
+        </div>
+
+        <div class="pipeline-arrow">&#10141;</div>
+
+        <!-- Normalize -->
+        <div class="pipeline-node">
+            <div class="pipeline-box ingest">
+                <span class="p-icon">&#128295;</span>
+                <span class="p-label">Data Normalization</span>
+                <span class="p-count">{{ stats.processors|length }} sources</span>
+            </div>
+        </div>
+
+        <div class="pipeline-arrow">&#10141;</div>
+
+        <!-- ML Classify -->
+        <div class="pipeline-node">
+            <div class="pipeline-box classify">
+                <span class="p-icon">&#129302;</span>
+                <span class="p-label">ML Classification</span>
+                <span class="p-count">8 signals</span>
+            </div>
+        </div>
+
+        <div class="pipeline-arrow">&#10141;</div>
+
+        <!-- Routing Split -->
+        <div class="pipeline-node" style="min-width: 320px;">
+            <div style="display:flex; gap:12px;">
+                <div class="pipeline-box auto" style="width:95px;">
+                    <span class="p-icon">&#9889;</span>
+                    <span class="p-label">Auto</span>
+                    <span class="p-count">{{ stats.auto_represent }}</span>
+                </div>
+                <div class="pipeline-box hitl" style="width:95px;">
+                    <span class="p-icon">&#128100;</span>
+                    <span class="p-label">HITL</span>
+                    <span class="p-count">{{ stats.hitl_review }}</span>
+                </div>
+                <div class="pipeline-box accept" style="width:95px;">
+                    <span class="p-icon">&#10060;</span>
+                    <span class="p-label">Accept</span>
+                    <span class="p-count">{{ stats.accept_refund }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="pipeline-arrow">&#10141;</div>
+
+        <!-- Outcome -->
+        <div class="pipeline-node">
+            <div class="pipeline-box outcome">
+                <span class="p-icon">&#127937;</span>
+                <span class="p-label">Outcomes</span>
+                <span class="p-count">{{ stats.wins }}W / {{ stats.losses }}L</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signal Weights Legend -->
+    <div style="margin-top:20px; padding-top:16px; border-top:1px solid #eee;">
+        <div style="font-size:13px; font-weight:700; color:#888; margin-bottom:10px;">ML SIGNAL WEIGHTS</div>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <span style="font-size:12px; padding:4px 12px; background:#fef3e2; border-radius:6px; color:#b45309;">3D Secure: 20pts</span>
+            <span style="font-size:12px; padding:4px 12px; background:#fef3e2; border-radius:6px; color:#b45309;">AVS Match: 15pts</span>
+            <span style="font-size:12px; padding:4px 12px; background:#fef3e2; border-radius:6px; color:#b45309;">CVV Match: 15pts</span>
+            <span style="font-size:12px; padding:4px 12px; background:#fef3e2; border-radius:6px; color:#b45309;">Delivery Confirmed: 12pts</span>
+            <span style="font-size:12px; padding:4px 12px; background:#fef3e2; border-radius:6px; color:#b45309;">Liability Shift: 10pts</span>
+            <span style="font-size:12px; padding:4px 12px; background:#fef3e2; border-radius:6px; color:#b45309;">Reason Code: 10pts</span>
+            <span style="font-size:12px; padding:4px 12px; background:#fef3e2; border-radius:6px; color:#b45309;">Low Amount: 10pts</span>
+            <span style="font-size:12px; padding:4px 12px; background:#fef3e2; border-radius:6px; color:#b45309;">Repeat Customer: 8pts</span>
+        </div>
+        <div style="font-size:12px; color:#aaa; margin-top:8px;">
+            Score &ge; 70 &#10141; Auto-Represent &nbsp;|&nbsp; Score 40-69 &#10141; HITL Review &nbsp;|&nbsp; Score &lt; 40 &#10141; Accept Recommended
+            &nbsp;&mdash;&nbsp; only Auto-Represent acts on its own; the other two wait for an analyst.
+        </div>
+    </div>
+</div>
+
+<!-- ═══ Channel Aggregation ═══ -->
+<div class="pipeline-section">
+    <h3>&#128279; Multi-Processor Aggregation</h3>
+    <div class="processor-grid">
+        {% for proc_name, proc in stats.processors.items() %}
+        <div class="proc-card {{ proc_name|lower }}">
+            <h4>
+                {% if proc_name == 'Adyen' %}&#128994;
+                {% elif proc_name == 'Braintree' %}&#128309;
+                {% elif proc_name == 'Worldpay' %}&#128992;
+                {% elif proc_name == 'Stripe' %}&#128995;
+                {% endif %}
+                {{ proc_name }}
+            </h4>
+            <div class="proc-stat-row">
+                <span class="ps-label">Total Cases</span>
+                <span class="ps-value">{{ proc.total }}</span>
+            </div>
+            <div class="proc-stat-row">
+                <span class="ps-label">Total Disputed</span>
+                <span class="ps-value">${{ "{:,.2f}".format(proc.total_amount) }}</span>
+            </div>
+            <div class="proc-stat-row">
+                <span class="ps-label">Auto-Represent</span>
+                <span class="ps-value" style="color:#2e7d32;">{{ proc.auto_represent }}</span>
+            </div>
+            <div class="proc-stat-row">
+                <span class="ps-label">HITL Review</span>
+                <span class="ps-value" style="color:#e65100;">{{ proc.hitl_review }}</span>
+            </div>
+            <div class="proc-stat-row">
+                <span class="ps-label">Accept Recommended</span>
+                <span class="ps-value" style="color:#c62828;">{{ proc.accept_refund }}</span>
+            </div>
+            <div class="proc-bar">
+                {% if proc.total > 0 %}
+                <div class="bar-auto" style="width:{{ (proc.auto_represent / proc.total * 100)|round }}%;"></div>
+                <div class="bar-hitl" style="width:{{ (proc.hitl_review / proc.total * 100)|round }}%;"></div>
+                <div class="bar-accept" style="width:{{ (proc.accept_refund / proc.total * 100)|round }}%;"></div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ═══ Reason Code Breakdown ═══ -->
+<div class="pipeline-section">
+    <h3>&#128200; Reason Code ML Analysis</h3>
+    <table class="rc-table">
+        <thead>
+            <tr>
+                <th>Code</th>
+                <th>Title</th>
+                <th>Cases</th>
+                <th>Total Amount</th>
+                <th>Avg ML Confidence</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for rc, data in stats.reason_codes.items() %}
+            <tr>
+                <td><a href="{{ url_for('reason_code_detail', code_id=rc) }}" style="font-weight:700;">{{ rc }}</a></td>
+                {# Was `reason_codes[rc].title`, keyed on the raw code against a
+                   Visa-format table — every non-Visa code missed and echoed
+                   itself back as its own description. #}
+                <td>{{ reason_description(rc, data.network) }}</td>
+                <td>{{ data.count }}</td>
+                <td>${{ "{:,.2f}".format(data.total_amount) }}</td>
+                <td>
+                    <div class="confidence-bar">
+                        <div class="bar-track">
+                            <div class="bar-fill" style="width:{{ data.avg_confidence }}%; background:{% if data.avg_confidence >= 70 %}#2e7d32{% elif data.avg_confidence >= 40 %}#f57f17{% else %}#c62828{% endif %};"></div>
+                        </div>
+                        <span class="bar-label" style="color:{% if data.avg_confidence >= 70 %}#2e7d32{% elif data.avg_confidence >= 40 %}#f57f17{% else %}#c62828{% endif %};">{{ data.avg_confidence }}%</span>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ═══ Classified Case Queue ═══ -->
+<div class="pipeline-section">
+    <h3>&#128203; Classified Case Queue</h3>
+
+    <div class="queue-tabs">
+        <div class="queue-tab active" onclick="filterQueue('all', this)">All <span class="tab-count">{{ stats.total_cases }}</span></div>
+        <div class="queue-tab" onclick="filterQueue('auto_represent', this)">Auto-Represent <span class="tab-count">{{ stats.auto_represent }}</span></div>
+        <div class="queue-tab" onclick="filterQueue('hitl_review', this)">HITL Review <span class="tab-count">{{ stats.hitl_review }}</span></div>
+        <div class="queue-tab" onclick="filterQueue('accept_refund', this)">Accept Recommended <span class="tab-count">{{ stats.accept_refund }}</span></div>
+    </div>
+
+    <table class="rc-table" id="queue-table">
+        <thead>
+            <tr>
+                <th>Case ID</th>
+                <th>Processor</th>
+                <th>Reason</th>
+                <th>Amount</th>
+                <th>ML Score</th>
+                <th>Routing</th>
+                <th>Key Signals</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in stats.classified_cases %}
+            <tr data-routing="{{ c.ml.routing }}">
+                <td><a href="{{ url_for('case_detail', case_id=c.case_id) }}" style="font-weight:700; font-family:monospace;">{{ c.case_id }}</a></td>
+                <td>{{ c.processor }}</td>
+                <td>{{ c.reason_code }} - {{ c.scenario[:25] }}...</td>
+                <td>${{ "%.2f"|format(c.amount) }}</td>
+                <td>
+                    <div class="confidence-bar">
+                        <div class="bar-track" style="width:80px;">
+                            <div class="bar-fill" style="width:{{ c.ml.confidence }}%; background:{% if c.ml.confidence >= 70 %}#2e7d32{% elif c.ml.confidence >= 40 %}#f57f17{% else %}#c62828{% endif %};"></div>
+                        </div>
+                        <span class="bar-label" style="color:{% if c.ml.confidence >= 70 %}#2e7d32{% elif c.ml.confidence >= 40 %}#f57f17{% else %}#c62828{% endif %};">{{ c.ml.confidence }}</span>
+                    </div>
+                </td>
+                <td><span class="routing-badge {{ c.ml.routing }}">{{ c.ml.routing_label }}</span></td>
+                <td>
+                    <div class="signal-pills">
+                        {% for sig, val in c.ml.contributing_factors[:3] %}
+                        <span class="signal-pill positive">{{ sig.replace('_', ' ').title() }}</span>
+                        {% endfor %}
+                        {% for sig in c.ml.missing_signals[:2] %}
+                        <span class="signal-pill negative">No {{ sig.replace('_', ' ').title() }}</span>
+                        {% endfor %}
+                    </div>
+                </td>
+                <td>
+                    {% if c.ml.routing == 'auto_represent' %}
+                    <a href="{{ url_for('review_packet', case_id=c.case_id) }}" class="review-btn" style="font-size:11px; padding:5px 12px;">View Packet</a>
+                    {% elif c.ml.routing == 'hitl_review' %}
+                    <a href="{{ url_for('defend_case', case_id=c.case_id) }}" class="review-btn" style="font-size:11px; padding:5px 12px; background:#e65100;">Review</a>
+                    {% else %}
+                    <a href="{{ url_for('case_detail', case_id=c.case_id) }}" class="review-btn" style="font-size:11px; padding:5px 12px; background:#888;">Details</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterQueue(routing, tab) {
+    // Update tabs
+    document.querySelectorAll('.queue-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+
+    // Filter rows
+    const rows = document.querySelectorAll('#queue-table tbody tr');
+    rows.forEach(row => {
+        if (routing === 'all' || row.dataset.routing === routing) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

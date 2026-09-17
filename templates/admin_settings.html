@@ -1,0 +1,19 @@
+{% extends "admin_base.html" %}
+{% block title %}Settings - Team Lead Interface{% endblock %}
+
+{% block content %}
+<div class="admin-head">
+    <h2>Settings</h2>
+    <p>Your account, colour theme and password.</p>
+    <span class="scope-note">&#128100; Signed in as {{ session.user }} &mdash; {{ role_label }}</span>
+</div>
+
+{% include "_account_settings.html" %}
+
+<div style="margin-top:26px; padding:14px 18px; background: var(--brand-wash, #fff7f2);
+            border:1px dashed var(--line-strong, #fbd9c4); border-radius:12px;
+            font-size:12.5px; color: var(--ink-soft-2, #7a6558); line-height:1.6; max-width:660px;">
+    <b>Team settings live elsewhere.</b> Case allocation and rework approvals are under Chargeback
+    Management; who reports to which lead is set by the manager on the Onboarding page.
+</div>
+{% endblock %}
