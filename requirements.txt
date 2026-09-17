@@ -1,0 +1,13 @@
+flask==3.1.1
+pyyaml>=6.0
+sqlalchemy>=2.0
+httpx>=0.27
+reportlab>=4.0
+# reportlab parses baseline JPEG itself but hands PNG to PIL, and the evidence
+# packet embeds whatever an agent uploaded. Without this the first screenshot
+# in a packet is a 500.
+pillow>=10
+python-dotenv>=1.0
+# Encrypts the third-party credentials a merchant stores in the client portal.
+# See CREDENTIAL_KEY in app.py — without this the page cannot hold a secret.
+cryptography>=42
