@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}Executive Dashboard - ChargeShield AI{% endblock %}
+
+{% block extra_css %}
+<style>
+    .fin-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+    .fin-card { background: var(--surface, #fff); border-radius: 14px; padding: 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); text-align: center; border-top: 4px solid var(--c-dddddd, #ddd); }
+    .fin-card .fc-val { font-size: 34px; font-weight: 800; line-height: 1.1; margin-bottom: 4px; }
+    .fin-card .fc-lbl { font-size: 12px; color: var(--c-888888, #888); font-weight: 600; text-transform: uppercase; }
+    .fin-card .fc-sub { font-size: 11px; color: var(--c-aaaaaa, #aaa); margin-top: 4px; }
+
+    .ex-section { background: var(--surface, #fff); border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 24px; }
+    .ex-section h3 { font-size: 16px; font-weight: 700; margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
+    .ex-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+
+    /* Funnel */
+    .funnel { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .funnel-step { display: flex; align-items: center; justify-content: center; color: var(--on-accent, #fff); font-weight: 700; font-size: 15px; height: 52px; border-radius: 6px; position: relative; }
+    .funnel-step .fs-label { position: absolute; right: -140px; font-size: 12px; color: var(--c-888888, #888); font-weight: 500; width: 130px; text-align: left; }
+    .funnel-arrow { font-size: 18px; color: var(--c-cccccc, #ccc); margin: 2px 0; }
+    .funnel-drop { font-size: 11px; color: #c62828; font-weight: 600; margin: 2px 0; }
+
+    /* Recovery bars */
+    .recovery-bars { display: flex; align-items: flex-end; gap: 12px; height: 140px; padding: 0 10px; }
+    .rb-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+    .rb-bar { width: 100%; border-radius: 6px 6px 0 0; position: relative; min-height: 4px; }
+    .rb-val { font-size: 11px; font-weight: 700; color: var(--c-333333, #333); }
+    .rb-lbl { font-size: 10px; color: var(--c-aaaaaa, #aaa); text-align: center; }
+
+    /* P&L table */
+    .pl-table { width: 100%; border-collapse: collapse; }
+    .pl-table thead th { background: var(--c-fdf9f6, #fdf9f6); padding: 10px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--c-888888, #888); text-align: left; border-bottom: 2px solid var(--c-e8e8e8, #e8e8e8); }
+    .pl-table tbody td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid var(--c-f0f0f0, #f0f0f0); }
+    .pl-table tbody tr:hover { background: var(--brand-wash, #fff7f2); }
+
+    /* Cost comparison */
+    .cost-compare { display: flex; gap: 24px; }
+    .cost-box { flex: 1; padding: 20px; border-radius: 10px; text-align: center; }
+    .cost-box.manual { background: #fce4ec; border: 2px solid #ef9a9a; }
+    .cost-box.auto { background: #e8f5e9; border: 2px solid #a5d6a7; }
+    .cost-box .cb-val { font-size: 30px; font-weight: 800; margin: 6px 0; }
+    .cost-box .cb-lbl { font-size: 13px; font-weight: 600; }
+    .cost-box .cb-detail { font-size: 11px; color: var(--c-666666, #666); margin-top: 8px; line-height: 1.6; }
+
+    /* Alerts */
+    .alert-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; font-size: 14px; }
+    .alert-item.high { background: #fce4ec; color: #c62828; }
+    .alert-item.medium { background: #fff3e0; color: #e65100; }
+    .alert-item.low { background: #e8f5e9; color: #2e7d32; }
+    .alert-item .al-icon { font-size: 20px; flex-shrink: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:24px;">
+    <h2 style="font-size:22px; font-weight:700;">Executive Dashboard</h2>
+    <p style="color:#666; font-size:14px;">Financial impact, automation ROI, and business health overview</p>
+</div>
+
+<!-- Financial Scorecard -->
+<div class="fin-row">
+    <div class="fin-card" style="border-top-color:#c62828;">
+        <div class="fc-val" style="color:#c62828;">${{ "{:,.0f}".format(ex.total_at_risk) }}</div>
+        <div class="fc-lbl">Total at Risk</div>
+        <div class="fc-sub">{{ ml.total_cases }} disputes filed</div>
+    </div>
+    <div class="fin-card" style="border-top-color:#2e7d32;">
+        <div class="fc-val" style="color:#2e7d32;">${{ "{:,.0f}".format(ex.total_recovered) }}</div>
+        <div class="fc-lbl">Total Recovered</div>
+        <div class="fc-sub">{{ ml.wins }} cases won</div>
+    </div>
+    <div class="fin-card" style="border-top-color:#f4611a;">
+        <div class="fc-val" style="color:#f4611a;">${{ "{:,.0f}".format(ex.cost_savings) }}</div>
+        <div class="fc-lbl">Cost Savings</div>
+        <div class="fc-sub">vs full manual processing</div>
+    </div>
+    <div class="fin-card" style="border-top-color:#b45309;">
+        <div class="fc-val" style="color:#b45309;">{{ ex.roi_pct }}%</div>
+        <div class="fc-lbl">Automation ROI</div>
+        <div class="fc-sub">~${{ "{:,.0f}".format(ex.annual_savings) }} projected annual</div>
+    </div>
+</div>
+
+<div class="ex-grid-2">
+    <!-- Recovery Trend -->
+    <div class="ex-section" style="margin-bottom:0;">
+        <h3>&#128200; Weekly Recovery Trend</h3>
+        <div class="recovery-bars">
+            {% set max_val = ex.weekly|map(attribute='disputed')|max %}
+            {% for wk in ex.weekly %}
+            <div class="rb-wrap">
+                <div class="rb-val" style="color:#2e7d32;">${{ "{:,.0f}".format(wk.recovered) }}</div>
+                <div class="rb-bar" style="height:{{ (wk.recovered / max_val * 120)|round }}px; background:linear-gradient(180deg, #2e7d32, #66bb6a);"></div>
+                <div class="rb-bar" style="height:{{ ((wk.disputed - wk.recovered) / max_val * 120)|round }}px; background:#ef9a9a; margin-top:2px; border-radius:0 0 6px 6px;"></div>
+                <div class="rb-lbl">{{ wk.label }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        <div style="display:flex; gap:16px; margin-top:12px; font-size:11px;">
+            <span style="color:#2e7d32;">&#9632; Recovered</span>
+            <span style="color:#ef9a9a;">&#9632; Lost/Pending</span>
+        </div>
+    </div>
+
+    <!-- Chargeback Funnel -->
+    <div class="ex-section" style="margin-bottom:0;">
+        <h3>&#127890; Chargeback Funnel</h3>
+        <div class="funnel" style="padding:10px 60px 10px 20px;">
+            <div class="funnel-step" style="width:100%; background:linear-gradient(90deg, #f4611a, #ff8a4c);">
+                {{ ex.funnel.filed }} Filed
+                <span class="fs-label">100% of disputes</span>
+            </div>
+            <div class="funnel-arrow">&#9660;</div>
+            {% if ex.funnel.filed > 0 %}
+            <div class="funnel-drop">{{ ex.funnel.filed - ex.funnel.defended }} dropped ({{ ((ex.funnel.filed - ex.funnel.defended) / ex.funnel.filed * 100)|round|int }}%)</div>
+            {% endif %}
+            <div class="funnel-step" style="width:75%; background:linear-gradient(90deg, #f57f17, #ffb74d);">
+                {{ ex.funnel.defended }} Defended
+                <span class="fs-label">{{ (ex.funnel.defended / ex.funnel.filed * 100)|round|int if ex.funnel.filed else 0 }}% defense rate</span>
+            </div>
+            <div class="funnel-arrow">&#9660;</div>
+            {% if ex.funnel.defended > 0 %}
+            <div class="funnel-drop">{{ ex.funnel.defended - ex.funnel.won }} lost ({{ ((ex.funnel.defended - ex.funnel.won) / ex.funnel.defended * 100)|round|int }}%)</div>
+            {% endif %}
+            <div class="funnel-step" style="width:45%; background:linear-gradient(90deg, #2e7d32, #66bb6a);">
+                {{ ex.funnel.won }} Won
+                <span class="fs-label">{{ (ex.funnel.won / ex.funnel.filed * 100)|round|int if ex.funnel.filed else 0 }}% overall win</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Channel P&L -->
+<div class="ex-section">
+    <h3>&#128176; Processor Revenue Impact</h3>
+    <table class="pl-table">
+        <thead>
+            <tr>
+                <th>Processor</th>
+                <th>Cases</th>
+                <th>Disputed</th>
+                <th>Recovered</th>
+                <th>Lost</th>
+                <th>Pending</th>
+                <th>Recovery Rate</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pname, pd in ex.processor_pl.items() %}
+            <tr>
+                <td style="font-weight:700; color:{% if pname == 'Adyen' %}#0abf53{% elif pname == 'Braintree' %}#4285f4{% elif pname == 'Worldpay' %}#e91e63{% else %}#635bff{% endif %};">{{ pname }}</td>
+                <td>{{ pd.cases }}</td>
+                <td style="color:#c62828; font-weight:600;">${{ "{:,.2f}".format(pd.disputed) }}</td>
+                <td style="color:#2e7d32; font-weight:600;">${{ "{:,.2f}".format(pd.recovered) }}</td>
+                <td style="color:#888;">${{ "{:,.2f}".format(pd.lost) }}</td>
+                <td style="color:#f57f17;">${{ "{:,.2f}".format(pd.pending) }}</td>
+                <td>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <div style="width:60px; height:7px; background:#eee; border-radius:4px; overflow:hidden;">
+                            <div style="height:100%; width:{{ pd.recovery_rate }}%; background:{% if pd.recovery_rate >= 50 %}#2e7d32{% elif pd.recovery_rate >= 20 %}#f57f17{% else %}#c62828{% endif %}; border-radius:4px;"></div>
+                        </div>
+                        <span style="font-size:12px; font-weight:700; color:{% if pd.recovery_rate >= 50 %}#2e7d32{% elif pd.recovery_rate >= 20 %}#f57f17{% else %}#c62828{% endif %};">{{ pd.recovery_rate }}%</span>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            <tr style="background:#fdf9f6; font-weight:700;">
+                <td>TOTAL</td>
+                <td>{{ ml.total_cases }}</td>
+                <td style="color:#c62828;">${{ "{:,.2f}".format(ex.total_at_risk) }}</td>
+                <td style="color:#2e7d32;">${{ "{:,.2f}".format(ex.total_recovered) }}</td>
+                <td style="color:#888;">${{ "{:,.2f}".format(ex.total_lost) }}</td>
+                <td style="color:#f57f17;">${{ "{:,.2f}".format(ex.pending_amount) }}</td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Automation Cost Impact -->
+<div class="ex-section">
+    <h3>&#9889; Automation Cost Impact</h3>
+    <div class="cost-compare">
+        <div class="cost-box manual">
+            <div class="cb-lbl" style="color:#c62828;">Without Automation</div>
+            <div class="cb-val" style="color:#c62828;">${{ "{:,.2f}".format(ex.total_cost_without) }}</div>
+            <div class="cb-detail">
+                {{ ml.total_cases }} cases x ${{ "%.2f"|format(ex.manual_cost_per_case) }} per case<br>
+                All cases handled manually by analysts<br>
+                ~4.5 hours evidence collection per case
+            </div>
+        </div>
+        <div class="cost-box auto">
+            <div class="cb-lbl" style="color:#2e7d32;">With Automation</div>
+            <div class="cb-val" style="color:#2e7d32;">${{ "{:,.2f}".format(ex.total_cost_with_auto) }}</div>
+            <div class="cb-detail">
+                {{ ex.auto_count }} auto @ ${{ "%.2f"|format(ex.auto_cost_per_case) }} + {{ ex.manual_count }} manual @ ${{ "%.2f"|format(ex.manual_cost_per_case) }}<br>
+                {{ ex.auto_count }} cases fully automated by ML<br>
+                ~1.4s evidence collection via APIs
+            </div>
+        </div>
+    </div>
+    <div style="background:linear-gradient(90deg, #c2410c, #9a3412); color:#fff; padding:14px 24px; border-radius:10px; margin-top:16px; text-align:center;">
+        <span style="font-size:28px; font-weight:800;">${{ "{:,.2f}".format(ex.cost_savings) }} Saved</span>
+        <span style="font-size:14px; opacity:0.8; margin-left:16px;">Projected Annual: ${{ "{:,.0f}".format(ex.annual_savings) }}</span>
+    </div>
+</div>
+
+<!-- Risk Alerts -->
+<div class="ex-section">
+    <h3>&#128680; Risk Alerts & Action Items</h3>
+    {% for alert in ex.alerts %}
+    <div class="alert-item {{ alert.severity }}">
+        <span class="al-icon">{{ alert.icon|safe }}</span>
+        <span>{{ alert.message }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

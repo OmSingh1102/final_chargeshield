@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Transaction Receipt - {{ case.case_id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.gr-wrap { max-width: 650px; margin: 0 auto; }
+.gr-box { background: var(--surface, #fff); border: 1px solid var(--c-cccccc, #ccc); border-radius: 4px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.gr-header { background: var(--c-f5c518, #f5c518); padding: 10px 20px; text-align: center; border-bottom: 2px solid var(--c-daa800, #daa800); }
+.gr-header h2 { margin: 0; font-size: 16px; font-weight: 800; color: var(--c-333333, #333); border: 2px solid var(--c-333333, #333); display: inline-block; padding: 2px 14px; background: rgba(255,255,255,.25); }
+.gr-btns { display: flex; justify-content: center; gap: 10px; padding: 10px 20px; background: var(--c-f9f9f9, #f9f9f9); border-bottom: 1px solid var(--c-e0e0e0, #e0e0e0); }
+.gr-btns button { padding: 6px 18px; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: pointer; border: none; color: var(--on-accent, #fff); background: var(--c-4285f4, #4285f4); }
+.gr-btns button:hover { background: var(--c-3367d6, #3367d6); }
+.gr-section { padding: 14px 20px; border-bottom: 1px solid var(--c-e0e0e0, #e0e0e0); }
+.gr-section:last-child { border-bottom: none; }
+.gr-section-title { font-size: 13px; font-weight: 800; color: var(--c-333333, #333); margin: 0 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--c-e0e0e0, #e0e0e0); }
+.gr-row { display: flex; gap: 40px; }
+.gr-col { flex: 1; }
+.gr-field { padding: 3px 0; font-size: 12px; line-height: 1.6; }
+.gr-field .gl { font-weight: 700; color: var(--c-333333, #333); }
+.gr-field .gv { color: var(--c-444444, #444); }
+.gr-field .gv.mono { font-family: 'Courier New', monospace; }
+.cc-logo { display: inline-block; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 2px; color: var(--on-accent, #fff); vertical-align: middle; margin-left: 4px; }
+.cc-visa { background: var(--c-1a1f71, #1a1f71); }
+.cc-mastercard { background: var(--c-eb001b, #eb001b); }
+.cc-amex { background: var(--c-006fcf, #006fcf); }
+.cc-discover { background: var(--c-ff6000, #ff6000); }
+.cc-klarna { background: var(--c-ffb3c7, #ffb3c7); color: var(--c-333333, #333); }
+.cc-other { background: var(--c-666666, #666); }
+.flag-icon { display: inline-block; width: 20px; height: 14px; background: linear-gradient(to bottom, #b22234 0%, #b22234 15%, var(--surface, #fff) 15%, var(--surface, #fff) 23%, #b22234 23%, #b22234 38%, var(--surface, #fff) 38%, var(--surface, #fff) 46%, #b22234 46%, #b22234 62%, var(--surface, #fff) 62%, var(--surface, #fff) 69%, #b22234 69%, #b22234 85%, var(--surface, #fff) 85%, var(--surface, #fff) 100%); border: 1px solid var(--c-cccccc, #ccc); vertical-align: middle; margin-left: 6px; border-radius: 1px; position: relative; }
+.flag-icon::before { content: ''; position: absolute; top: 0; left: 0; width: 40%; height: 53%; background: var(--c-3c3b6e, #3c3b6e); }
+@media print { .breadcrumb, .gr-btns, nav, footer { display: none !important; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ home_url }}">&#8962; Home</a> &gt;
+    <a href="{{ url_for('case_detail', case_id=case.case_id) }}">{{ case.case_id }}</a> &gt;
+    Gateway Receipt
+</div>
+
+<div class="gr-wrap">
+    <div class="gr-box">
+        <div class="gr-header"><h2>Transaction Receipt</h2></div>
+        <div class="gr-btns">
+            <button onclick="window.print()">Print Receipt</button>
+            <button onclick="alert('Email receipt requires SMTP configuration.')">Email Receipt</button>
+        </div>
+
+        <div class="gr-section">
+            <div class="gr-section-title">Transaction Information</div>
+            <div class="gr-row">
+                <div class="gr-col">
+                    <div class="gr-field"><span class="gl">Merchant:</span> <span class="gv">{{ receipt.merchant_name }}</span></div>
+                    <div class="gr-field"><span class="gl">Transaction ID:</span> <span class="gv mono">{{ receipt.transaction_id }}</span></div>
+                    <div class="gr-field"><span class="gl">Amount:</span> <span class="gv">${{ "%.2f"|format(receipt.amount) }}</span></div>
+                </div>
+                <div class="gr-col">
+                    <div class="gr-field"><span class="gl">Date:</span> <span class="gv">{{ receipt.transaction_date }}</span></div>
+                    <div class="gr-field"><span class="gl">Transaction Type:</span> <span class="gv">{{ receipt.transaction_type }}</span></div>
+                    <div class="gr-field"><span class="gl">Entry Method:</span> <span class="gv">{{ receipt.entry_method }}</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="gr-section">
+            <div class="gr-section-title">Credit Card Information</div>
+            <div class="gr-row">
+                <div class="gr-col">
+                    <div class="gr-field">
+                        <span class="gl">CC Number:</span>
+                        <span class="gv mono">{{ receipt.cc_number }}</span>
+                        <span class="flag-icon"></span>
+                    </div>
+                    <div class="gr-field"><span class="gl">CC Expiration:</span> <span class="gv">{{ receipt.cc_expiration }}</span></div>
+                    <div class="gr-field">
+                        <span class="gl">CC Type:</span> <span class="gv">{{ receipt.cc_type }}</span>
+                        {% set ct = receipt.cc_type|upper %}
+                        <span class="cc-logo {% if ct == 'VISA' %}cc-visa{% elif ct == 'MASTERCARD' %}cc-mastercard{% elif ct == 'AMEX' %}cc-amex{% elif ct == 'DISCOVER' %}cc-discover{% elif ct == 'KLARNA' %}cc-klarna{% else %}cc-other{% endif %}">{{ ct }}</span>
+                    </div>
+                    <div class="gr-field"><span class="gl">Processor:</span> <span class="gv">{{ receipt.processor }}</span></div>
+                </div>
+                <div class="gr-col">
+                    <div class="gr-field"><span class="gl">AVS Status:</span> <span class="gv">{{ receipt.avs_status }}</span></div>
+                    <div class="gr-field"><span class="gl">CVV Status:</span> <span class="gv">{{ receipt.cvv_status }}</span></div>
+                    <div class="gr-field"><span class="gl">Auth. Code:</span> <span class="gv mono">{{ receipt.auth_code }}</span></div>
+                    <div class="gr-field"><span class="gl">Currency:</span> <span class="gv">{{ receipt.currency }}</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

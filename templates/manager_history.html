@@ -1,0 +1,267 @@
+{% extends "manager_base.html" %}
+{% block title %}Chargeback History - Management Console{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* KPI strip — four measures that each stand alone, rather than tiles a
+       reader is invited to add up. */
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 26px; }
+    .kpi-card { background: var(--surface, #fff); border-radius: 12px; padding: 18px 20px; box-shadow: 0 2px 8px rgba(0,0,0,.06); text-align: center; border-top: 3px solid var(--c-dddddd, #ddd); }
+    .kpi-card .kpi-val { font-size: 30px; font-weight: 800; line-height: 1.1; margin-bottom: 4px; }
+    .kpi-card .kpi-lbl { font-size: 11px; color: var(--c-888888, #888); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+    .kpi-card.blue { border-top-color: var(--brand, #f4611a); } .kpi-card.blue .kpi-val { color: var(--brand, #f4611a); }
+    .kpi-card.orange { border-top-color: #e65100; } .kpi-card.orange .kpi-val { color: #e65100; }
+    .kpi-card.purple { border-top-color: #b45309; } .kpi-card.purple .kpi-val { color: #b45309; }
+
+    .panel { background: var(--surface, #fff); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); padding: 18px 20px; }
+    .filter-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .filter-row .ftitle { font-size: 15px; font-weight: 800; color: var(--ink); margin-right: 4px; }
+    .filter-row label { font-size: 12px; font-weight: 600; color: var(--c-888888, #888); }
+    .filter-row select, .filter-row input {
+        padding: 6px 12px; border: 1px solid var(--c-dddddd, #ddd); border-radius: 6px;
+        font-family: inherit; font-size: 13px; color: var(--ink); background: var(--surface, #fff);
+    }
+    .filter-row input { min-width: 190px; }
+    .filter-row select:focus, .filter-row input:focus { outline: none; border-color: var(--brand); }
+    .clear-btn { padding: 6px 14px; border: 1px solid var(--c-dddddd, #ddd); border-radius: 6px; background: var(--surface, #fff); font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--c-7a5c49, #7a5c49); cursor: pointer; }
+    .clear-btn:hover { border-color: var(--brand); color: var(--brand-dark); }
+
+    /* Handling is one field with mutually exclusive values, so these chips do
+       sum to the book — the reason this strip can be read at a glance. */
+    .chip-row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 14px; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 13px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+    .chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .chip.auto { background: #e9f6ea; color: #2e7d32; }
+    .chip.hitl { background: #fdeceb; color: #c62828; }
+    .chip.accepted { background: var(--c-f0eeec, #f0eeec); color: var(--c-6d6259, #6d6259); }
+
+    /* What the three handling states mean, on the page that shows them. The
+       question a first-time reader asks about this column is what separates
+       them and whether the system concedes on its own — so the column answers
+       it rather than leaving it to whoever is presenting. */
+    .handling-key {
+        margin-top: 12px; padding: 11px 14px; border-radius: 10px;
+        background: var(--c-faf8f6, #faf8f6); border: 1px solid var(--line, #f2e4da);
+        font-size: 12px; color: var(--ink-soft, #6d6259); line-height: 1.7;
+    }
+    .handling-key b { color: var(--ink, #2f2620); font-weight: 700; }
+    .handling-key .sep { margin: 0 4px; opacity: .45; }
+    .handling-key .rule { display: block; margin-top: 5px; font-weight: 600; color: var(--ink, #2f2620); }
+
+    .row-count { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; margin: 16px 0 10px; }
+    .table-scroll { overflow-x: auto; }
+    /* Fifteen columns since the duplicate category column went. Left at 1680 the
+       survivors would just stretch to fill it and the scrollbar would be exactly
+       as long as before. */
+    table.tbl { min-width: 1540px; }
+    /* The console's default header is solid dark, which fights the light card
+       this table now sits inside. Local override only — other pages keep it. */
+    table.tbl th {
+        background: var(--c-faf7f5, #faf7f5); color: var(--c-6d6259, #6d6259); border-bottom: 1px solid var(--line-strong);
+        font-size: 11px; letter-spacing: .3px; padding: 12px 10px;
+    }
+    table.tbl td { vertical-align: middle; }
+    /* Client names are two or three words; left to wrap they turn every row
+       into a three-line block and the table stops scanning cleanly. */
+    td.nowrap { white-space: nowrap; }  /* td.client went with the Client column */
+    .hbadge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 20px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+    .hbadge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .hbadge.auto { background: #e9f6ea; color: #2e7d32; }
+    .hbadge.hitl { background: #fdeceb; color: #c62828; }
+    .hbadge.accepted { background: var(--c-f0eeec, #f0eeec); color: var(--c-6d6259, #6d6259); }
+    .act-btn { display: inline-block; padding: 7px 14px; border: 1px solid var(--brand); border-radius: 8px; font-size: 12px; font-weight: 700; color: var(--brand); text-decoration: none; white-space: nowrap; }
+    .act-btn:hover { background: var(--brand); color: var(--on-accent, #fff); }
+    .empty-msg { padding: 30px; text-align: center; color: var(--ink-soft); font-size: 13.5px; display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mgr-head">
+    <h2>Chargeback History</h2>
+    <p>The full internal case record &mdash; every case in the ingested book.</p>
+    {% if a.kpis %}
+    <span class="scope-note">{{ icon('file-text') }} {{ m.totals.cases }} cases</span>
+    {% endif %}
+</div>
+
+{# a is {} for an empty book, so the KPI row below reads a.kpis off nothing. #}
+{% if not a.kpis %}
+{% include "_empty_state.html" %}
+{% else %}
+
+<div class="kpi-row">
+    <div class="kpi-card blue">
+        <div class="kpi-val">{{ m.totals.cases }}</div>
+        <div class="kpi-lbl">Total Cases</div>
+    </div>
+    <div class="kpi-card blue">
+        <div class="kpi-val">{{ a.kpis.auto_represent_rate }}%</div>
+        <div class="kpi-lbl">Auto-Represent Rate</div>
+    </div>
+    <div class="kpi-card purple">
+        <div class="kpi-val">{{ a.kpis.avg_completeness }}%</div>
+        <div class="kpi-lbl">Evidence Completeness</div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="filter-row">
+        <span class="ftitle">All Cases</span>
+        <label for="f-bucket">Client</label>
+        <select id="f-bucket" onchange="filterRows()">
+            <option value="">All</option>
+            {% for b in m.filters.buckets %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+        </select>
+        <label for="f-handling">Handling</label>
+        <select id="f-handling" onchange="filterRows()">
+            <option value="">All</option>
+            {% for h in m.filters.handlings %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+        </select>
+        <label for="f-processor">Processor</label>
+        <select id="f-processor" onchange="filterRows()">
+            <option value="">All</option>
+            {% for p in m.filters.processors %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+        </select>
+        <label for="f-network">Network</label>
+        <select id="f-network" onchange="filterRows()">
+            <option value="">All</option>
+            {% for n in m.filters.networks %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+        </select>
+        <label for="f-outcome">Outcome</label>
+        <select id="f-outcome" onchange="filterRows()">
+            <option value="">All</option>
+            {% for o in m.filters.outcomes %}<option value="{{ o }}">{{ o }}</option>{% endfor %}
+        </select>
+        <label for="f-submission">Submission</label>
+        <select id="f-submission" onchange="filterRows()">
+            <option value="">All</option>
+            {% for s in m.filters.submissions %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select>
+        <label for="f-agent">Agent</label>
+        <select id="f-agent" onchange="filterRows()">
+            <option value="">All</option>
+            {% for x in m.filters.agents %}<option value="{{ x }}">{{ x }}</option>{% endfor %}
+        </select>
+        {# A Source filter sat here offering Automated / Manual. Every case is
+           manually ingested, so "Automated" matched nothing and "Manual"
+           matched everything. Removed with the column it filtered. #}
+        <input type="text" id="f-search" placeholder="Search case ID, customer&hellip;" oninput="filterRows()">
+        <button class="clear-btn" onclick="clearFilters()">Clear</button>
+    </div>
+
+    <div class="chip-row">
+        {# Iterate the canonical order rather than the count dict, so the chips
+           read auto -> review -> accepted every time instead of following
+           whatever order the cases happened to arrive in. #}
+        {% for label in a.handling_order %}{% if m.handling_counts.get(label) %}
+        <span class="chip {{ 'auto' if label == 'Auto Submission' else 'hitl' if label == 'HITL Review' else 'accepted' }}">{{ label }} {{ m.handling_counts[label] }}</span>
+        {% endif %}{% endfor %}
+    </div>
+
+<div class="handling-key">
+    <b>Auto Submission</b> &mdash; confidence &ge; 70: the system builds the evidence
+    packet and files the representment.<span class="sep">&middot;</span>
+    <b>HITL Review</b> &mdash; 40&ndash;69: an analyst reviews the evidence and
+    decides.<span class="sep">&middot;</span>
+    <b>Accept Recommended</b> &mdash; below 40: the engine advises conceding rather
+    than spending the fee on a case it scores as unwinnable.
+    <span class="rule">Only Auto Submission acts on its own. Both other states wait
+        for a person &mdash; nothing is conceded without one, and the
+        <em>Outcome</em> column is what the issuer or the analyst finally decided.</span>
+</div>
+
+    <div class="row-count" id="row-count">Showing all {{ m.history|length }} cases.</div>
+
+    <div class="table-scroll">
+        <table class="tbl">
+            <thead>
+                <tr>
+                    {# Chargeback Category used to sit after Scenario. The CSV loader fills
+                       both from the sheet's reason description, so the two printed the same
+                       string on every row. The field is still on the case -- the evidence
+                       rules and the win-probability score both read it. #}
+                    {# Client and Win Prob were removed by request. Client read
+                       "Acme Online Store" on every row -- the sheet carries one
+                       book -- and Win Prob repeated the ML confidence already
+                       shown on the case page. The Client filter above still
+                       works: it reads data-bucket on the row, not this column. #}
+                    <th>Case ID</th><th>Handling</th><th>Scenario</th>
+                    <th>Network</th><th>Processor</th>
+                    <th>Amount</th><th>Assigned To</th>
+                    <th>Submission Status</th><th>Outcome</th>
+                    <th>Dispute Date</th><th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="hist-body">
+                {% for r in m.history %}
+                <tr data-bucket="{{ r.bucket }}" data-agent="{{ r.assigned_agent }}"
+                    data-handling="{{ r.handling }}" data-outcome="{{ r.outcome }}"
+                    data-processor="{{ r.processor }}" data-network="{{ r.network }}"
+                    data-submission="{{ r.submission_status }}"
+                    data-search="{{ (r.case_id ~ ' ' ~ r.customer ~ ' ' ~ r.processor ~ ' ' ~ r.scenario)|lower }}">
+                    <td><a class="cid" href="{{ url_for('case_detail', case_id=r.case_id) }}">{{ r.case_id }}</a></td>
+                    <td><span class="hbadge {{ r.handling_class }}">{{ r.handling }}</span></td>
+                    <td>{{ r.scenario }}</td>
+                    <td>{{ r.network }}</td>
+                    <td>{{ r.processor }}</td>
+                    <td class="nowrap"><b>{{ r.currency }} {{ "%.2f"|format(r.amount) }}</b></td>
+                    <td>{{ r.assigned_agent or '&mdash;'|safe }}</td>
+                    <td>
+                        {% if r.submission_status == 'Submitted' %}<span class="pill ok">Submitted</span>
+                        {% else %}<span class="pill wait">{{ r.submission_status }}</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if r.outcome == 'Win' %}<span class="pill ok">Win</span>
+                        {% elif r.outcome == 'Lost' %}<span class="pill bad">Lost</span>
+                        {% else %}<span class="pill wait">{{ r.outcome }}</span>{% endif %}
+                    </td>
+                    {# A Source pill sat here reading "manual" on every row. #}
+                    <td>{{ r.dispute_date }}</td>
+                    <td><a class="act-btn" href="{{ url_for('review_packet', case_id=r.case_id) }}">Review Packet</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="empty-msg" id="empty-msg">No cases match these filters.</div>
+</div>
+{% endif %}{# a.kpis #}
+{% endblock %}
+
+{% block extra_js %}
+{# Nothing to filter on an empty book, and the elements these functions reach
+   for are not rendered then either. #}
+{% if a.kpis %}
+<script>
+var FILTERS = ['bucket', 'handling', 'processor', 'network', 'outcome',
+               'submission', 'agent'];
+
+function filterRows() {
+    var q = document.getElementById('f-search').value.trim().toLowerCase();
+    var rows = document.querySelectorAll('#hist-body tr');
+    var shown = 0;
+
+    rows.forEach(function (row) {
+        var ok = FILTERS.every(function (k) {
+            var want = document.getElementById('f-' + k).value;
+            return !want || row.dataset[k] === want;
+        });
+        if (ok && q) { ok = row.dataset.search.indexOf(q) !== -1; }
+        row.classList.toggle('hidden', !ok);
+        if (ok) { shown++; }
+    });
+
+    document.getElementById('row-count').textContent = shown === rows.length
+        ? 'Showing all ' + shown + ' cases.'
+        : 'Showing ' + shown + ' of ' + rows.length + ' cases.';
+    document.getElementById('empty-msg').style.display = shown === 0 ? 'block' : 'none';
+}
+
+function clearFilters() {
+    FILTERS.forEach(function (k) { document.getElementById('f-' + k).value = ''; });
+    document.getElementById('f-search').value = '';
+    filterRows();
+}
+</script>
+{% endif %}
+{% endblock %}

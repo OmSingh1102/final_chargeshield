@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+{% block title %}Submit Defense - {{ case.case_id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .defend-header {
+        background: linear-gradient(135deg, #1b5e20, #2e7d32);
+        color: var(--on-accent, #fff);
+        padding: 30px 40px;
+        border-radius: 12px;
+        margin-bottom: 30px;
+    }
+    .defend-header h2 { font-size: 22px; margin-bottom: 6px; }
+    .defend-header p { opacity: 0.85; font-size: 14px; }
+
+    .defend-form { max-width: 1000px; }
+
+    .evidence-section {
+        background: var(--surface, #fff);
+        border-radius: 12px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        overflow: hidden;
+    }
+
+    .evidence-section-header {
+        padding: 16px 24px;
+        background: var(--c-fdf9f6, #fdf9f6);
+        border-bottom: 2px solid var(--brand-tint, #ffeadd);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+    }
+
+    .evidence-section-header h4 {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--brand, #f4611a);
+        margin: 0;
+    }
+
+    .evidence-section-header .section-icon {
+        font-size: 18px;
+    }
+
+    .evidence-section-header .toggle-arrow {
+        margin-left: auto;
+        font-size: 14px;
+        color: var(--c-888888, #888);
+        transition: transform 0.2s;
+    }
+
+    .evidence-section-header.collapsed .toggle-arrow {
+        transform: rotate(-90deg);
+    }
+
+    .evidence-section-body {
+        padding: 20px 24px;
+    }
+
+    .evidence-section-body.hidden {
+        display: none;
+    }
+
+    .evidence-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--c-f0f0f0, #f0f0f0);
+    }
+
+    .evidence-item:last-child { border-bottom: none; }
+
+    .evidence-item .ev-checkbox {
+        margin-top: 2px;
+        width: 18px;
+        height: 18px;
+        accent-color: var(--brand, #f4611a);
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .evidence-item .ev-content {
+        flex: 1;
+    }
+
+    .evidence-item .ev-label {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--ink, #2b1b12);
+        margin-bottom: 6px;
+    }
+
+    .evidence-item .ev-desc {
+        font-size: 12px;
+        color: var(--c-888888, #888);
+        margin-bottom: 8px;
+    }
+
+    .file-upload-area {
+        border: 2px dashed var(--c-d0d0d0, #d0d0d0);
+        border-radius: 8px;
+        padding: 14px 16px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: var(--c-fafafa, #fafafa);
+        position: relative;
+    }
+
+    .file-upload-area:hover {
+        border-color: var(--brand, #f4611a);
+        background: var(--c-fff6f0, #fff6f0);
+    }
+
+    .file-upload-area input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    .file-upload-area .upload-icon {
+        font-size: 22px;
+        color: var(--c-aaaaaa, #aaa);
+    }
+
+    .file-upload-area .upload-text {
+        font-size: 13px;
+        color: var(--c-888888, #888);
+        margin-top: 4px;
+    }
+
+    .file-upload-area .upload-text span {
+        color: var(--brand, #f4611a);
+        font-weight: 600;
+    }
+
+    .file-upload-area .file-name {
+        font-size: 13px;
+        color: #2e7d32;
+        font-weight: 600;
+        margin-top: 4px;
+    }
+
+    .notes-textarea {
+        width: 100%;
+        min-height: 80px;
+        border: 1px solid var(--c-dddddd, #ddd);
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-family: inherit;
+        resize: vertical;
+        margin-top: 8px;
+    }
+
+    .notes-textarea:focus {
+        outline: none;
+        border-color: var(--brand, #f4611a);
+        box-shadow: 0 0 0 3px rgba(21,101,192,0.1);
+    }
+
+    .submit-section {
+        background: var(--surface, #fff);
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        margin-top: 24px;
+    }
+
+    .submit-section h3 {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 16px;
+    }
+
+    .submit-row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .submit-btn {
+        padding: 12px 36px;
+        border: none;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .submit-btn.primary {
+        background: var(--brand, #f4611a);
+        color: var(--on-accent, #fff);
+    }
+    .submit-btn.primary:hover { background: var(--brand-dark, #c2410c); }
+
+    .submit-btn.success {
+        background: #2e7d32;
+        color: var(--on-accent, #fff);
+    }
+    .submit-btn.success:hover { background: #1b5e20; }
+
+    .submit-btn.outline {
+        background: var(--surface, #fff);
+        color: var(--c-555555, #555);
+        border: 1px solid var(--c-dddddd, #ddd);
+    }
+    .submit-btn.outline:hover { background: var(--c-f5f5f5, #f5f5f5); }
+
+    .progress-bar-wrapper {
+        background: var(--surface, #fff);
+        border-radius: 12px;
+        padding: 20px 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        margin-bottom: 24px;
+    }
+
+    .progress-bar-wrapper .prog-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    .progress-track {
+        background: var(--c-e8e8e8, #e8e8e8);
+        border-radius: 8px;
+        height: 10px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        background: linear-gradient(90deg, var(--brand, #f4611a), #2e7d32);
+        height: 100%;
+        border-radius: 8px;
+        transition: width 0.4s ease;
+    }
+
+    .case-summary-bar {
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+        margin-bottom: 24px;
+    }
+
+    .summary-chip {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--surface, #fff);
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    .summary-chip .chip-label { color: var(--c-888888, #888); }
+    .summary-chip .chip-value { font-weight: 700; color: var(--ink, #2b1b12); }
+
+    /* Success modal */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 200;
+        justify-content: center;
+        align-items: center;
+    }
+    .modal-overlay.show { display: flex; }
+
+    .modal-box {
+        background: var(--surface, #fff);
+        border-radius: 16px;
+        padding: 40px;
+        text-align: center;
+        max-width: 420px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .modal-box .modal-icon { font-size: 56px; margin-bottom: 16px; }
+    .modal-box h3 { font-size: 20px; margin-bottom: 8px; }
+    .modal-box p { color: var(--c-666666, #666); font-size: 14px; margin-bottom: 20px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ home_url }}">&#8962; Home</a> &gt;
+    <a href="{{ url_for('case_detail', case_id=case.case_id) }}">{{ case.case_id }}</a> &gt;
+    Submit Defense Documents
+</div>
+
+<div class="defend-header">
+    <h2>Submit Defense Documents: {{ case.case_id }}</h2>
+    <p>Reason Code {{ case.reason_code }} - {{ reason.title }} | {{ case.scenario }} | Processor: {{ case.processor }} | Dispute Amount: ${{ "%.2f"|format(case.amount) }}</p>
+</div>
+
+<!-- Case Summary Chips -->
+<div class="case-summary-bar">
+    <div class="summary-chip">
+        <span class="chip-label">Reason Code:</span>
+        <span class="chip-value">{{ reason_label(case.reason_code, case.payment_method) }}</span>
+    </div>
+    <div class="summary-chip">
+        <span class="chip-label">Card:</span>
+        <span class="chip-value">{{ case.payment_method }} ****{{ case.card_last_four }}</span>
+    </div>
+    <div class="summary-chip">
+        <span class="chip-label">3D Secure:</span>
+        <span class="chip-value">{{ case.threed_secure }}</span>
+    </div>
+    <div class="summary-chip">
+        <span class="chip-label">AVS:</span>
+        <span class="chip-value">{{ case.avs_response[:30] }}...</span>
+    </div>
+    <div class="summary-chip">
+        <span class="chip-label">Win Probability:</span>
+        <span class="chip-value" style="color:{% if case.win_probability >= 60 %}#2e7d32{% elif case.win_probability >= 40 %}#f57f17{% else %}#c62828{% endif %};">{{ case.win_probability }}%</span>
+    </div>
+</div>
+
+<!-- Evidence Completion Progress -->
+<div class="progress-bar-wrapper">
+    <div class="prog-label">
+        <span>Evidence Completion</span>
+        <span id="progress-text">0 / <span id="total-items">0</span> items attached</span>
+    </div>
+    <div class="progress-track">
+        <div class="progress-fill" id="progress-fill" style="width:0%;"></div>
+    </div>
+</div>
+
+<form id="defense-form" class="defend-form">
+    <!-- Platform-specific documents (if available) -->
+    {% if reason.supporting_docs_platform %}
+    <div class="evidence-section">
+        <div class="evidence-section-header" onclick="toggleSection(this)">
+            <span class="section-icon">&#127922;</span>
+            <h4>Marketplace / Platform-Specific Evidence</h4>
+            <span style="background:#f4611a; color:#fff; padding:2px 10px; border-radius:4px; font-size:11px; font-weight:700; margin-left:8px;">Platform</span>
+            <span class="toggle-arrow">&#9660;</span>
+        </div>
+        <div class="evidence-section-body">
+            {% for cat in reason.supporting_docs_platform %}
+            <div style="margin-bottom:16px;">
+                <div style="font-size:13px; font-weight:700; color:#f4611a; padding:6px 0; border-bottom:1px solid #ffeadd; margin-bottom:8px;">{{ cat.category }}</div>
+                {% for item in cat.evidences %}
+                <div class="evidence-item">
+                    <input type="checkbox" class="ev-checkbox" onchange="updateProgress()">
+                    <div class="ev-content">
+                        <div class="ev-label">{{ item }}</div>
+                        <div class="file-upload-area" onclick="event.stopPropagation()">
+                            <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.csv" onchange="showFileName(this)">
+                            <div class="upload-icon">&#128206;</div>
+                            <div class="upload-text">Drag & drop or <span>browse files</span></div>
+                            <div class="upload-text" style="font-size:11px;">(PDF, JPG, PNG, DOC, XLS)</div>
+                            <div class="file-name"></div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- General Supporting Documents (per reason code) -->
+    {% for cat in reason.supporting_docs_general %}
+    <div class="evidence-section">
+        <div class="evidence-section-header" onclick="toggleSection(this)">
+            <span class="section-icon">
+                {% if 'Authentication' in cat.category or 'Authorization' in cat.category %}&#128274;
+                {% elif 'Delivery' in cat.category or 'Tracking' in cat.category or 'Shipping' in cat.category %}&#128230;
+                {% elif 'Transaction' in cat.category or 'Account' in cat.category %}&#128200;
+                {% elif 'Communication' in cat.category or 'Correspondence' in cat.category %}&#128172;
+                {% elif 'Recurring' in cat.category or 'Subscription' in cat.category %}&#128260;
+                {% elif 'Refund' in cat.category or 'Credit' in cat.category %}&#128176;
+                {% elif 'Service' in cat.category %}&#9989;
+                {% elif 'Product' in cat.category %}&#128722;
+                {% elif 'Policy' in cat.category or 'Return' in cat.category %}&#128220;
+                {% elif 'Resolution' in cat.category %}&#128221;
+                {% elif 'Fraud' in cat.category %}&#128683;
+                {% elif 'Void' in cat.category %}&#128683;
+                {% else %}&#128196;
+                {% endif %}
+            </span>
+            <h4>{{ cat.category }}</h4>
+            <span class="toggle-arrow">&#9660;</span>
+        </div>
+        <div class="evidence-section-body">
+            {% for item in cat.evidences %}
+            <div class="evidence-item">
+                <input type="checkbox" class="ev-checkbox" onchange="updateProgress()">
+                <div class="ev-content">
+                    <div class="ev-label">{{ item }}</div>
+                    <div class="file-upload-area" onclick="event.stopPropagation()">
+                        <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.csv" onchange="showFileName(this)">
+                        <div class="upload-icon">&#128206;</div>
+                        <div class="upload-text">Drag & drop or <span>browse files</span></div>
+                        <div class="upload-text" style="font-size:11px;">(PDF, JPG, PNG, DOC, XLS)</div>
+                        <div class="file-name"></div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Merchant Notes / Rebuttal Letter -->
+    <div class="evidence-section">
+        <div class="evidence-section-header" onclick="toggleSection(this)">
+            <span class="section-icon">&#128221;</span>
+            <h4>Merchant Rebuttal Letter / Notes</h4>
+            <span class="toggle-arrow">&#9660;</span>
+        </div>
+        <div class="evidence-section-body">
+            <p style="font-size:13px; color:#666; margin-bottom:12px;">
+                Write a clear and concise rebuttal letter that directly addresses the cardholder's claims, summarizes your defense, and references all supporting evidence attached above.
+            </p>
+            <textarea class="notes-textarea" rows="6" placeholder="Dear Issuing Bank,&#10;&#10;We are writing to dispute the chargeback filed under Case {{ case.case_id }} (Reason Code {{ case.reason_code }}). We believe this chargeback is invalid for the following reasons:&#10;&#10;1. ...&#10;2. ...&#10;&#10;Please find the supporting evidence attached.&#10;&#10;Sincerely,&#10;Merchant Dispute Team"></textarea>
+
+            <div style="margin-top:16px;">
+                <div class="ev-label">Attach Rebuttal Letter (optional)</div>
+                <div class="file-upload-area" onclick="event.stopPropagation()" style="margin-top:8px;">
+                    <input type="file" accept=".pdf,.doc,.docx" onchange="showFileName(this)">
+                    <div class="upload-icon">&#128206;</div>
+                    <div class="upload-text">Upload signed rebuttal letter - <span>browse</span></div>
+                    <div class="file-name"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submit Section -->
+    <div class="submit-section">
+        <h3>Submit Defense Package</h3>
+        <p style="font-size:13px; color:#666; margin-bottom:16px;">
+            Review all attached evidence before submitting. Once submitted, the defense package will be sent to <strong>{{ case.processor }}</strong> for processing against dispute <strong>{{ case.dispute_psp_ref }}</strong>.
+        </p>
+        <div class="submit-row">
+            <button type="button" class="submit-btn success" onclick="submitDefense()">Submit Defense via {{ case.processor }}</button>
+            <button type="button" class="submit-btn primary" onclick="submitDefense()">Save as Draft</button>
+            <a href="{{ url_for('case_detail', case_id=case.case_id) }}" class="submit-btn outline">Cancel</a>
+        </div>
+    </div>
+</form>
+
+<!-- Success Modal -->
+<div class="modal-overlay" id="success-modal">
+    <div class="modal-box">
+        <div class="modal-icon">&#9989;</div>
+        <h3>Defense Submitted Successfully</h3>
+        <p>Your defense package for <strong>{{ case.case_id }}</strong> has been submitted via <strong>{{ case.processor }}</strong> processor. You will be notified when the issuer responds.</p>
+        <a href="{{ url_for('case_detail', case_id=case.case_id) }}" class="submit-btn primary" style="display:inline-block; text-decoration:none;">Back to Case</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Initialize total items count
+document.addEventListener('DOMContentLoaded', function() {
+    const total = document.querySelectorAll('.ev-checkbox').length;
+    document.getElementById('total-items').textContent = total;
+});
+
+function updateProgress() {
+    const checkboxes = document.querySelectorAll('.ev-checkbox');
+    const checked = document.querySelectorAll('.ev-checkbox:checked').length;
+    const total = checkboxes.length;
+    const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
+
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-text').textContent = checked + ' / ' + total + ' items attached';
+}
+
+function toggleSection(header) {
+    const body = header.nextElementSibling;
+    body.classList.toggle('hidden');
+    header.classList.toggle('collapsed');
+}
+
+function showFileName(input) {
+    const nameEl = input.parentElement.querySelector('.file-name');
+    if (input.files.length > 0) {
+        nameEl.textContent = input.files[0].name;
+        // Auto-check the checkbox
+        const item = input.closest('.evidence-item');
+        if (item) {
+            const cb = item.querySelector('.ev-checkbox');
+            if (cb && !cb.checked) {
+                cb.checked = true;
+                updateProgress();
+            }
+        }
+    } else {
+        nameEl.textContent = '';
+    }
+}
+
+function submitDefense() {
+    document.getElementById('success-modal').classList.add('show');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in - ChargeShield AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    {# The centred-card CSS this page used to declare inline is now the shared
+       .auth-* block in style.css, along with the other three auth documents. #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="auth">
+    <div class="auth-wrap wide">
+        <div class="auth-head">
+            {# The Straive mark leads the page, above the product name. The
+               shield glyph that used to sit here was a generic icon standing in
+               for a brand we now have the real asset for. #}
+            <img class="auth-logo-top" src="{{ url_for('static', filename='img/straive-logo.png') }}" alt="Straive">
+            <div class="auth-bar"></div>
+            <h1>Chargeback Defense Platform</h1>
+            <p>Professional Chargeback Investigation &amp; Management</p>
+        </div>
+
+        <div class="auth-grid">
+            <a href="{{ url_for('login') }}" class="auth-option primary">
+                <span class="tile">&#128274;</span>
+                <h2>Straive Login</h2>
+                <div class="lead">Internal team access for Straive employees</div>
+                <span class="btn btn-primary btn-lg btn-block">Continue to Straive Login</span>
+            </a>
+
+            <a href="{{ url_for('client_login') }}" class="auth-option secondary">
+                <span class="tile">&#127970;</span>
+                <h2>Client Login</h2>
+                <div class="lead">External access for clients and merchants</div>
+                <span class="btn btn-outline btn-lg btn-block">Continue to Client Login</span>
+            </a>
+        </div>
+
+        <div class="auth-foot" style="margin-top:32px">
+            Secure role-based access control &bull; Your role is read from your credentials
+            and decides which page you land on
+        </div>
+    </div>
+    {# The footer copy of the logo is gone: it now leads the page instead, and
+       showing the same mark twice on one screen only weakened both. #}
+</body>
+</html>

@@ -1,0 +1,25 @@
+{# Flash messages, rendered by every shell.
+
+   Until this existed only counter_evidence.html called get_flashed_messages,
+   so every flash raised anywhere else — an ingest result, a failed upload, a
+   save that could not be written — was queued and then silently dropped on the
+   next page. The routes were reporting honestly to nobody.
+
+   Styling is inline var(--token, #fallback) like the other partials, so this
+   needs no stylesheet change and follows the theme into dark mode. #}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flashes" style="display:flex; flex-direction:column; gap:8px; margin-bottom:18px;">
+    {% for category, message in messages %}
+    {% set tone = {'error': ('#c62828', '#fdecea'), 'success': ('#2e7d32', '#eaf6ec')}.get(category, ('#7a6558', '#f7efe9')) %}
+    <div role="status" style="display:flex; gap:10px; align-items:flex-start;
+                padding:11px 15px; border-radius:10px; font-size:13px; line-height:1.55;
+                color:{{ tone[0] }}; background:{{ tone[1] }};
+                border:1px solid {{ tone[0] }}33; border-left:3px solid {{ tone[0] }};">
+        <span aria-hidden="true">{% if category == 'error' %}&#9888;{% elif category == 'success' %}&#10003;{% else %}&#8505;{% endif %}</span>
+        <span>{{ message }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}

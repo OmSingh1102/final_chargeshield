@@ -1,0 +1,949 @@
+{% extends "base.html" %}
+{% block title %}Counter Evidence - {{ case.case_id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.ce-layout { display: grid; grid-template-columns: 1fr 300px; gap: 24px; }
+@media (max-width: 900px) { .ce-layout { grid-template-columns: 1fr; } }
+
+.ce-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.ce-header h2 { font-size: 16px; font-weight: 700; color: var(--ink-2, #2e1f17); margin: 0; }
+.ce-close { font-size: 20px; color: var(--ink-faint, #b0998a); text-decoration: none; font-weight: 700; }
+.ce-close:hover { color: var(--ink-2, #2e1f17); }
+.ce-tier { margin-left: auto; padding: 4px 12px; border-radius: 999px; font-size: 10.5px;
+           font-weight: 800; text-transform: uppercase; letter-spacing: .4px; }
+.ce-tier.semi_automated  { background: #fff4e5; color: #b45309; }
+
+/* Header table */
+.ce-info-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+.ce-info-table td { border: 1px solid var(--line-2, #e8dad0); padding: 8px 12px; }
+.ce-info-table .lbl { font-weight: 700; color: var(--c-6b584c, #6b584c); width: 25%; }
+.ce-info-table .val { font-family: monospace; color: var(--ink-2, #2e1f17); width: 25%; }
+
+/* Section titles */
+.ce-section-title { font-size: 14px; font-weight: 800; color: var(--ink-2, #2e1f17); margin: 24px 0 8px; text-decoration: underline; }
+
+/* Textareas */
+.ce-textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--c-e0e0e0, #e0e0e0); border-radius: 6px; font-size: 13px; color: var(--ink-2, #2e1f17); min-height: 60px; resize: vertical; line-height: 1.6; font-family: inherit; }
+.ce-textarea:focus { outline: none; border-color: var(--brand, #f4611a); }
+
+/* Prose blocks. A lead gets the textarea above plus the bar below it; everyone
+   else gets .ce-prose, which carries the same words with no control at all. */
+.ce-prose { font-size: 13px; color: var(--ink-2, #2e1f17); line-height: 1.6; white-space: pre-wrap;
+            padding: 10px 12px; }
+.ce-block-bar { display: flex; align-items: center; gap: 6px; margin: 4px 0 2px; }
+.ce-block-src { flex: 1; font-size: 10.5px; color: var(--ink-faint, #b0998a); font-style: italic; }
+.ce-block-btn { font-size: 10.5px; font-weight: 700; padding: 4px 10px; border-radius: 6px;
+                cursor: pointer; border: 1px solid var(--line-2, #e8dad0); background: var(--surface, #fff); color: var(--ink-soft-2, #7a6558); }
+.ce-block-btn:hover { background: var(--brand-wash, #fff7f2); border-color: var(--brand, #f4611a); color: var(--brand, #f4611a); }
+.ce-block-btn.ghost { color: var(--ink-faint, #b0998a); }
+.ce-block.dirty .ce-textarea { border-color: var(--brand, #f4611a); background: var(--c-fffdfa, #fffdfa); }
+
+/* Evidence list */
+.ce-evidence-list { margin: 12px 0 16px 20px; padding: 10px 16px; background: var(--brand-tint, #ffeadd); border-radius: 6px; font-size: 13px; color: var(--brand, #f4611a); font-weight: 600; font-style: italic; }
+.ce-evidence-list ol { margin: 0; padding-left: 18px; }
+.ce-evidence-list li { margin: 3px 0; }
+
+/* Compelling evidence label */
+.ce-compelling { font-size: 13px; font-weight: 700; color: var(--ink-2, #2e1f17); margin: 10px 0 8px; }
+.ce-compelling .src-sys { color: #2e7d32; }
+.ce-compelling .src-man { color: var(--brand-dark, #c2410c); }
+
+/* ── Fetched-from-system block ── */
+.ce-fetched { border: 1px solid var(--line-2, #e8dad0); border-left: 4px solid #2e7d32; border-radius: 8px;
+              background: var(--surface, #fff); margin: 8px 0 16px; overflow: hidden; }
+.ce-fetched-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+                   padding: 8px 14px; background: #f1f8f2; border-bottom: 1px solid var(--line-2, #e8dad0); }
+.ce-fetched-head .badge { font-size: 10px; font-weight: 800; letter-spacing: .4px;
+                          text-transform: uppercase; color: #2e7d32; }
+.ce-fetched-head .cols { font-size: 10.5px; color: var(--ink-muted, #9c8578); margin-left: auto; word-break: break-word; }
+.ce-fetched-head .policy { font-size: 9.5px; font-weight: 800; letter-spacing: .3px;
+                           text-transform: uppercase; color: var(--brand-dark, #c2410c); background: var(--brand-tint, #ffeadd);
+                           padding: 2px 8px; border-radius: 20px; }
+.ce-fetched-body { padding: 4px 14px 12px; }
+.ce-fetched h4 { font-size: 12px; font-weight: 800; color: var(--brand, #f4611a); margin: 12px 0 6px;
+                 text-transform: uppercase; letter-spacing: .3px; }
+.ce-doc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ce-doc-table td { border: 1px solid #f0e6df; padding: 6px 10px; vertical-align: top; }
+.ce-doc-table td.k { color: var(--c-6b584c, #6b584c); width: 38%; }
+.ce-doc-table td.v { color: var(--ink-2, #2e1f17); font-family: monospace; word-break: break-word; }
+.ce-doc-table tr:nth-child(even) td { background: var(--c-fdf9f7, #fdf9f7); }
+.ce-doc-para { font-size: 12.5px; color: var(--ink-2, #2e1f17); line-height: 1.65; margin: 0 0 7px; }
+.ce-unavailable { padding: 12px 14px; font-size: 12.5px; color: var(--ink-muted, #9c8578); font-style: italic; }
+
+/* Upload areas */
+.ce-upload-form { margin: 8px 0 16px; }
+/* display:block — it is a <label> wrapping a hidden file input, and a label is
+   inline by default, which collapses the dashed box. */
+.ce-upload-area { display: block; border: 1px dashed var(--line-2, #e8dad0); border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; transition: .2s; background: var(--c-fafafa, #fafafa); }
+.ce-upload-area:hover { border-color: var(--brand, #f4611a); background: var(--brand-wash, #fff7f2); }
+.ce-upload-plus { font-size: 24px; color: var(--c-d0bcae, #d0bcae); }
+.ce-upload-text { font-size: 11px; color: var(--brand, #f4611a); margin-top: 4px; }
+.ce-upload-hint { font-size: 10px; color: var(--ink-faint, #b0998a); margin-top: 3px; }
+.ce-upload-form input[type=file] { display: none; }
+.ce-upload-go { display: none; margin-top: 8px; width: 100%; padding: 9px; border: none; border-radius: 8px;
+                background: var(--brand, #f4611a); color: var(--on-accent, #fff); font-size: 12px; font-weight: 700; cursor: pointer; }
+.ce-upload-go:hover { background: var(--brand-dark, #c2410c); }
+.ce-upload-form.picked .ce-upload-go { display: block; }
+
+.ce-uploaded-file { display: block; max-width: 100%; background: var(--surface-2, #f7efe9); border-radius: 6px; margin: 8px 0; overflow: hidden; border: 1px solid var(--c-e0e0e0, #e0e0e0); }
+.ce-uploaded-file img { width: 100%; height: auto; display: block; }
+.ce-file-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 12px; }
+.ce-file-row a { color: #2e7d32; font-weight: 700; text-decoration: none; word-break: break-all; }
+.ce-file-row a:hover { text-decoration: underline; }
+.ce-file-row .meta { color: var(--ink-muted, #9c8578); font-size: 10.5px; margin-left: auto; white-space: nowrap; }
+.ce-del { background: none; border: none; color: #c62828; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; }
+
+/* Flash */
+.ce-flash { padding: 10px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; margin-bottom: 12px; }
+.ce-flash.success { background: #e8f5e9; color: #2e7d32; }
+.ce-flash.error { background: var(--c-fdecea, #fdecea); color: #c62828; }
+
+/* Bottom bar */
+.ce-bottom { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 0; margin-top: 20px; border-top: 1px solid var(--surface-2, #f7efe9); }
+.ce-btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* Case state banner */
+.ce-lock { display: flex; gap: 12px; align-items: flex-start; border-radius: 12px;
+           padding: 14px 18px; margin-bottom: 18px; font-size: 13px; line-height: 1.6; }
+.ce-lock .ic { font-size: 17px; line-height: 1.3; }
+.ce-lock.locked { background: #fff4e5; border: 1px solid #f3d9ae; color: #7a4b0a; }
+.ce-lock.released { background: #e9f6ea; border: 1px solid #bfe0c2; color: #1b5e20; }
+.ce-lock .note { margin: 7px 0; padding: 8px 12px; border-radius: 8px;
+                 background: rgba(255,255,255,.6); font-style: italic; font-weight: 600; }
+
+/* A locked upload slot: shown, not hidden, so the gap is still visible */
+.ce-upload-locked {
+    border: 1px dashed var(--line-2, #e8dad0); border-radius: 8px; padding: 16px;
+    text-align: center; background: var(--surface-2, #f7efe9); color: var(--ink-faint, #b0998a);
+    font-size: 11.5px; font-weight: 600; margin: 8px 0 16px; opacity: .75;
+}
+.ce-upload-locked .ce-upload-plus { font-size: 20px; margin-bottom: 2px; }
+.ce-upload-locked .hint { font-size: 10.5px; font-weight: 500; margin-top: 3px; }
+
+/* Readiness summary above the submit button */
+.ce-ready { margin-top: 26px; border: 1px solid var(--line-strong, #fbd9c4); border-radius: 12px;
+            background: var(--brand-wash, #fff7f2); padding: 16px 20px; }
+.ce-ready-head { font-size: 13px; font-weight: 800; color: var(--ink, #2e1f17); margin-bottom: 12px; }
+.ce-ready-rows { display: flex; gap: 28px; flex-wrap: wrap; }
+.ce-ready-rows div { font-size: 12.5px; color: var(--ink-soft, #9c8578); }
+.ce-ready-rows b { display: block; font-size: 19px; font-weight: 800; color: #2e7d32; }
+.ce-ready-rows .gap b { color: #b45309; }
+.ce-ready-warn { margin-top: 13px; font-size: 12px; color: #7a4b0a; background: #fff4e5;
+                 border: 1px solid #f3d9ae; border-radius: 8px; padding: 9px 13px; line-height: 1.6; }
+.ce-ready-note { margin-top: 11px; font-size: 11.5px; color: var(--ink-soft, #9c8578); font-weight: 600; }
+.ce-btn { padding: 10px 24px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
+.ce-btn-cancel { background: var(--surface, #fff); color: var(--ink-soft-2, #7a6558); border: 1px solid var(--line-2, #e8dad0); }
+.ce-btn-cancel:hover { background: var(--surface-2, #f7efe9); }
+.ce-btn-download { background: var(--surface, #fff); color: var(--brand, #f4611a); border: 1px solid var(--brand, #f4611a); }
+.ce-btn-download:hover { background: var(--brand-tint, #ffeadd); }
+.ce-btn-submit { background: var(--brand, #f4611a); color: var(--on-accent, #fff); }
+.ce-btn-submit:hover { background: var(--brand-dark, #c2410c); }
+
+/* Sidebar */
+.ce-sidebar { background: var(--surface, #fff); border-radius: 10px; padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,.06); position: sticky; top: 80px; }
+.ce-sidebar-title { font-size: 14px; font-weight: 800; color: var(--ink-2, #2e1f17); margin-bottom: 4px; }
+.ce-sidebar-bar { height: 3px; background: var(--brand, #f4611a); border-radius: 2px; margin-bottom: 14px; }
+.ce-sidebar-desc { font-size: 12px; color: var(--ink-muted, #9c8578); margin-bottom: 14px; line-height: 1.5; }
+.ce-sidebar-list { list-style: none; padding: 0; margin: 0; }
+.ce-sidebar-list li { font-size: 11.5px; color: var(--c-6b584c, #6b584c); margin-bottom: 5px; display: flex; gap: 6px; align-items: flex-start; }
+.ce-sidebar-list .have { color: #2e7d32; }
+.ce-sidebar-list .miss { color: #c62828; }
+
+/* Modal */
+.ce-modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.4); z-index:9000; display:none; align-items:center; justify-content:center; }
+.ce-modal-overlay.open { display:flex; }
+.ce-modal { background:var(--surface, #fff); border-radius:12px; padding:32px; max-width:420px; width:90%; text-align:center; }
+
+/* Print */
+@media print {
+    .header, .ce-header, .ce-bottom, .ce-modal-overlay, .ce-flash { display: none !important; }
+    .ce-layout { grid-template-columns: 1fr !important; }
+    .ce-sidebar { display: none !important; }
+    .ce-upload-form { display: none !important; }
+    .ce-textarea { display: none !important; }
+    .ce-block-bar { display: none !important; }
+    /* An agent's read-only prose prints as-is; a lead's prints via .ce-print-text,
+       so a packet printed from either role carries the same words. */
+    .ce-prose { display: block !important; padding: 0 !important; }
+    .ce-print-text { display: block !important; }
+    .ce-uploaded-file { max-width: 100% !important; width: 100% !important; page-break-inside: avoid; }
+    .ce-uploaded-file img { max-width: 100% !important; width: 100% !important; height: auto !important; }
+    .ce-fetched { page-break-inside: avoid; }
+    body { background: var(--surface, #fff) !important; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .ce-print-header { display: block !important; }
+}
+.ce-print-header { display: none; }
+.ce-print-text { display: none; font-size: 13px; color: var(--ink-2, #2e1f17); line-height: 1.7; white-space: pre-wrap; }
+</style>
+{% endblock %}
+
+{#
+  Two macros keep the nine sections short: one renders a document the system
+  already holds, the other renders the upload box for one an agent must supply.
+#}
+{% macro fetched(doc) %}
+<div class="ce-fetched">
+    <div class="ce-fetched-head">
+        <span class="badge">&#10003; Fetched from system</span>
+        {% if doc.policy %}<span class="policy">Merchant policy</span>{% endif %}
+        <span class="cols">{{ doc.columns }}</span>
+    </div>
+    {% if doc.available %}
+    <div class="ce-fetched-body">
+        {% for heading, body in doc.sections %}
+        <h4>{{ heading }}</h4>
+        {% if body and body[0] is string %}
+            {% for para in body %}<p class="ce-doc-para">{{ para }}</p>{% endfor %}
+        {% else %}
+        <table class="ce-doc-table">
+            {% for label, value in body %}
+            <tr><td class="k">{{ label }}</td><td class="v">{{ value }}</td></tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        {% endfor %}
+        {% if doc.note %}<p class="ce-doc-para" style="color:#9c8578; font-style:italic; margin-top:10px;">{{ doc.note }}</p>{% endif %}
+    </div>
+    {% else %}
+    <div class="ce-unavailable">{{ doc.note or 'Not held in the system for this case.' }}</div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{# Split in three so a fetched section can still list files uploaded against it
+   before the client moved onto a hands-off tier, without also offering a form
+   that the tier says nobody should be filling in. upload_box keeps its old
+   shape, so every existing call site is untouched. #}
+{% macro uploaded_files(requirement) %}
+{% for up in uploads_by_slug.get(requirement|slug, []) %}
+<div class="ce-uploaded-file">
+    {% if up.filename.lower().endswith(('.png', '.jpg', '.jpeg')) %}
+    <img src="{{ up.url }}" alt="{{ up.filename }}">
+    {% endif %}
+    <div class="ce-file-row">
+        <span>&#128196;</span>
+        <a href="{{ up.url }}">{{ up.filename }}</a>
+        <span class="meta">{{ up.size_kb }} KB &middot; {{ up.uploaded_at }}</span>
+        {# Removing evidence from a filed packet takes the same approval as
+           adding to it, so the control goes with the rest of them. #}
+        {% if can_edit %}
+        <form method="post" action="{{ up.delete_url }}" style="display:inline;">
+            <button type="submit" class="ce-del" title="Remove">&times;</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+{% endmacro %}
+
+{% macro upload_form(requirement) %}
+{% if can_edit %}
+<form method="post" enctype="multipart/form-data" class="ce-upload-form"
+      action="{{ url_for('counter_upload', case_id=case.case_id) }}">
+    <input type="hidden" name="requirement" value="{{ requirement }}">
+    <label class="ce-upload-area">
+        <div class="ce-upload-plus">+</div>
+        <div class="ce-upload-text">Paste or upload file</div>
+        <div class="ce-upload-hint">{{ upload_exts|join(' ') }} &middot; max {{ max_upload_mb }} MB</div>
+        <input type="file" name="evidence_file" accept="{{ upload_exts|join(',') }}" required>
+    </label>
+    <button type="submit" class="ce-upload-go">Upload selected file</button>
+</form>
+{% else %}
+{# Grayed out rather than hidden: an agent looking for the missing document
+   needs to see that the slot exists and why they cannot fill it. #}
+<div class="ce-upload-locked">
+    <div class="ce-upload-plus">&#128274;</div>
+    <div>{% if lock.locked %}Locked &mdash; submitted{% else %}Not yours to edit{% endif %}</div>
+    {% if lock.locked %}<div class="hint">Ask your team lead for rework approval</div>{% endif %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{% macro upload_box(requirement) %}
+{{ uploaded_files(requirement) }}{{ upload_form(requirement) }}
+{% endmacro %}
+
+{# One prose block of the rebuttal. The eleven blocks used to be literal
+   <textarea> elements holding hardcoded Jinja: editable by every role, saved by
+   nobody, discarded on reload. They now come from NarrativeBlocks with a
+   four-level cascade behind them (this case, this reason category, default,
+   built-in).
+
+   Two powers, not one. `can_edit` is the agent working this case plus any lead:
+   writing the rebuttal in front of you is the job. `can_template` is leads
+   only, because deciding what every case in the category says is not.
+
+   Both arrive from the route, never computed here — a role test in a template
+   is a display rule, and the write routes carry the real check. #}
+{% macro block(bid) %}
+{% set b = blocks[bid] %}
+<div class="ce-block" data-block="{{ bid }}" data-raw="{{ b.raw }}" data-level="{{ b.level }}">
+{% if can_edit %}
+    <textarea class="ce-textarea" rows="{{ b.rows }}">{{ b.text }}</textarea>
+    <div class="ce-block-bar">
+        <span class="ce-block-src">
+            {%- if b.level == 'case' %}Written for this case
+            {%- elif b.level == 'category' %}Template for this reason category{% if b.edited_by %} &middot; {{ b.edited_by }}{% endif %}
+            {%- elif b.level == 'default' %}Default template{% if b.edited_by %} &middot; {{ b.edited_by }}{% endif %}
+            {%- else %}Built-in text{% endif -%}
+        </span>
+        <button type="button" class="ce-block-btn" onclick="saveBlock('{{ bid }}','case')">Save for this case</button>
+        {% if can_template %}
+        <button type="button" class="ce-block-btn" onclick="saveBlock('{{ bid }}','category')">Save as template</button>
+        {% endif %}
+        {# An agent may drop their own text for this case, but a template is not
+           theirs to remove — that reset is a lead's. #}
+        {% if b.level == 'case' or (can_template and b.level != 'builtin') %}
+        <button type="button" class="ce-block-btn ghost" onclick="resetBlock('{{ bid }}')">Reset</button>
+        {% endif %}
+    </div>
+{% else %}
+    {# No box: either this case belongs to another agent, or it is submitted and
+       locked pending a team lead's rework approval. #}
+    <div class="ce-prose">{{ b.text }}</div>
+{% endif %}
+</div>
+{% endmacro %}
+
+{# One letter section, rendered the way this client's tier says it should be.
+   Replaces nine hand-written pairs that hardcoded which sections were fetched
+   and which were uploaded. #}
+{% macro section(key) %}
+{% set label = section_labels[key] %}
+{% if section_modes[key] == 'system' %}
+<div class="ce-compelling">Compelling Evidence: {{ '{' }}{{ documents[key].title }}{{ '}' }}
+    <span class="src-sys">&mdash; fetched from the case record</span></div>
+{{ fetched(documents[key]) }}
+{{ uploaded_files(label) }}
+{% else %}
+<div class="ce-compelling">Compelling Evidence Attached: {{ '{' }}{{ label }}{{ '}' }}
+    <span class="src-man">&mdash; upload required</span></div>
+{{ upload_box(label) }}
+{% endif %}
+{% endmacro %}
+
+{% block content %}
+{# The state of the case, said plainly at the top. An agent who cannot find the
+   upload box needs to know it is the lock and not a bug, and one who has been
+   granted rework needs to know what to fix and that resubmitting closes it. #}
+{% if lock.locked %}
+<div class="ce-lock locked">
+    <span class="ic">&#128274;</span>
+    <div>
+        {# lock.locked is a fact about the case — submitted and not released — and
+           says nothing about who is reading it. can_edit is True for a lead and
+           the manager, so the agent wording below told the very people holding
+           the override that editing was frozen, and told a team lead to go and
+           ask their team lead. Inside this branch can_edit implies a lead: an
+           agent's clause in can_edit is already False once the case is locked. #}
+        {% if can_edit %}
+        <b>Submitted &mdash; locked to the agent.</b>
+        The packet has been filed, so {{ lock.owner or 'the agent who owns this case' }} can no
+        longer change it.
+        {%- if lock.reopenable_here %}
+        Your lead override still applies here &mdash; edit directly, or grant rework approval
+        to reopen the case for them.
+        {%- else %}
+        You can still edit directly, but {{ lock.owner or 'this agent' }} reports to another
+        lead, so reopening the case for rework is theirs to grant, not yours.
+        {%- endif %}
+        {% else %}
+        <b>Submitted &mdash; this case is locked.</b>
+        Editing is frozen so a filed packet cannot be changed by accident. If something is missing or
+        wrong, ask your team lead to review the case and grant rework approval.
+        {% endif %}
+    </div>
+</div>
+{% elif lock.released %}
+<div class="ce-lock released">
+    <span class="ic">&#128275;</span>
+    <div>
+        <b>Reopened for rework{% if lock.released_by %} by {{ lock.released_by }}{% endif %}{% if lock.released_at %} &middot; {{ lock.released_at }}{% endif %}.</b>
+        {% if lock.note %}<div class="note">&ldquo;{{ lock.note }}&rdquo;</div>{% endif %}
+        Make your changes and submit again. Resubmitting locks the case, and reopening it a second
+        time needs another approval.
+    </div>
+</div>
+{% endif %}
+
+<div class="ce-print-header" style="text-align:center; margin-bottom:16px; padding-bottom:10px; border-bottom:2px solid #2e1f17;">
+    <h2 style="font-size:16px; font-weight:800; color:#2e1f17; margin:0 0 4px;">Counter Evidence - {{ case.case_id }}</h2>
+    <p style="font-size:12px; color:#9c8578; margin:0;">{{ case.get('reason_description', case.scenario) }} | {{ case.get('currency','USD') }} {{ "%.2f"|format(case.amount) }}</p>
+</div>
+
+<div class="ce-header">
+    <a href="{{ url_for('chargeback_detail', case_id=case.case_id) }}" class="ce-close">&times;</a>
+    <h2>Counter Evidence</h2>
+    <span class="ce-tier {{ tier }}">{{ tier_label }} &middot; {{ client }}</span>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="ce-flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+{% endwith %}
+
+<div class="ce-layout">
+    <div>
+        {# ── Header Table ── #}
+        <table class="ce-info-table">
+            <tr>
+                <td class="lbl">Merchant Number: </td>
+                <td class="val">{{ case.get('acquirer_code', '') or case.get('merchant_account', '') or 'N/A' }}</td>
+                <td class="lbl">DBA Name: </td>
+                <td class="val">{{ case.get('merchant') or 'Merchant' }}</td>
+            </tr>
+            <tr>
+                <td class="lbl">Order ID: </td>
+                <td class="val">{{ case.get('order_id', '') or 'N/A' }}</td>
+                <td class="lbl">Case / ARN: </td>
+                <td class="val">{{ case.get('acquirer_ref', '') or 'N/A' }}</td>
+            </tr>
+            <tr>
+                <td class="lbl">Transaction ID: </td>
+                <td class="val">{{ case.get('payment_psp_ref', case.get('dispute_psp_ref', '')) or 'N/A' }}</td>
+                <td class="lbl">Reason Code: </td>
+                <td class="val">{{ reason_label(case.reason_code, case.payment_method) }}</td>
+            </tr>
+            <tr>
+                <td class="lbl">{{ case.payment_method }} Amount: </td>
+                <td class="val">{{ "%.2f"|format(case.amount) }} {{ case.get('currency', 'USD') }}</td>
+                <td class="lbl">Response Date: </td>
+                <td class="val">{{ case.get('dispute_creation_date', '') or 'N/A' }}</td>
+            </tr>
+        </table>
+
+        {# ── Salutation + Body ── #}
+        <div style="margin-bottom:16px;">
+            {{ block('letter_body') }}
+        </div>
+
+        {# ── Evidence List (highlighted) ── #}
+        <div class="ce-evidence-list">
+            <p style="margin:0 0 6px;">The compelling evidence listed below are provided as per {{ case.payment_method }}'s Compelling Evidence Mandate Policy Revision:</p>
+            <ol>
+                <li>Transaction Copy with an AVS code of ({{ case.get('avs_response', 'N/A')[:3] }}), CVV captured as ({{ case.get('cvv_response', 'N/A')[:3] }}) &amp; Authorization code {{ case.get('auth_code', 'N/A') }}</li>
+                <li>Order Confirmation</li>
+                <li>Invoice Breakup</li>
+                <li>Refund Information</li>
+                <li>{{ case.payment_method }} Cardholder Registration and Order History</li>
+                <li>{{ case.payment_method }} Cardholder Activity Log</li>
+                <li>Attachment showing that the Cardholder is aware of Checkout Terms prior to purchase</li>
+                <li>Attachment showing that the Cardholder is aware of Terms &amp; Conditions prior to purchase</li>
+                <li>Refund Policy in force at the time of purchase</li>
+            </ol>
+        </div>
+
+        {# ── 1. Transaction Copy (manual) ── #}
+        <div class="ce-section-title">Transaction Copy:</div>
+        <div style="margin-bottom:8px;">
+            {{ block('intro_transaction_copy') }}
+        </div>
+        {{ section('transaction_copy') }}
+
+        {# ── 2. Order Confirmation (system: Order Information) ── #}
+        <div class="ce-section-title">Order Confirmation:</div>
+        <div style="margin-bottom:8px;">
+            {{ block('intro_order_confirmation') }}
+        </div>
+        {{ section('order_information') }}
+
+        {# ── 3. Invoice Breakup (system) ── #}
+        <div class="ce-section-title">Invoice Breakup:</div>
+        <div style="margin-bottom:8px;">
+            {{ block('intro_invoice_breakup') }}
+        </div>
+        {{ section('invoice_breakup') }}
+
+        {# ── 4. Refund Information (system) ── #}
+        <div class="ce-section-title">Refund Information:</div>
+        <div style="margin-bottom:8px;">
+            {{ block('intro_refund_information') }}
+        </div>
+        {{ section('refund_information') }}
+
+        {# ── Page break / Header table repeated ── #}
+        <table class="ce-info-table" style="margin-top:30px;">
+            <tr>
+                <td class="lbl">Merchant Number: </td>
+                <td class="val">{{ case.get('acquirer_code', '') or case.get('merchant_account', '') or 'N/A' }}</td>
+                <td class="lbl">DBA Name: </td>
+                <td class="val">{{ case.get('merchant') or 'Merchant' }}</td>
+            </tr>
+            <tr>
+                <td class="lbl">Order ID: </td>
+                <td class="val">{{ case.get('order_id', '') or 'N/A' }}</td>
+                <td class="lbl">Case / ARN: </td>
+                <td class="val">{{ case.get('acquirer_ref', '') or 'N/A' }}</td>
+            </tr>
+            <tr>
+                <td class="lbl">Transaction ID: </td>
+                <td class="val">{{ case.get('payment_psp_ref', case.get('dispute_psp_ref', '')) or 'N/A' }}</td>
+                <td class="lbl">Reason Code: </td>
+                <td class="val">{{ reason_label(case.reason_code, case.payment_method) }}</td>
+            </tr>
+            <tr>
+                <td class="lbl">{{ case.payment_method }} Amount: </td>
+                <td class="val">{{ "%.2f"|format(case.amount) }} {{ case.get('currency', 'USD') }}</td>
+                <td class="lbl">Response Date: </td>
+                <td class="val">{{ case.get('dispute_creation_date', '') or 'N/A' }}</td>
+            </tr>
+        </table>
+
+        {# ── 5. Registration and Order History (system: Account History) ── #}
+        <div class="ce-section-title">{{ case.payment_method }} Cardholder Registration and Order History:</div>
+        <div style="margin-bottom:8px;">
+            {{ block('intro_account_history') }}
+        </div>
+        {{ section('account_history') }}
+
+        {# ── 6. Activity Log (manual) ── #}
+        <div class="ce-section-title">{{ case.payment_method }} Cardholder Activity Log:</div>
+        <div style="margin-bottom:8px;">
+            {{ block('intro_activity_log') }}
+        </div>
+        {{ section('activity_log') }}
+
+        {# ── 7. Checkout Page (manual) ── #}
+        <div class="ce-section-title">Checkout Page:</div>
+        <div style="margin-bottom:8px;">
+            {{ block('intro_checkout_record') }}
+        </div>
+        {{ section('checkout_record') }}
+
+        {# ── 8. Terms & Conditions (system) ── #}
+        <div class="ce-section-title">Terms &amp; Conditions:</div>
+        <div style="margin-bottom:8px;">
+            {{ block('intro_terms_conditions') }}
+        </div>
+        {{ section('terms_conditions') }}
+
+        {# ── 9. Refund Policy (system) ── #}
+        <div class="ce-section-title">Refund Policy:</div>
+        <div style="margin-bottom:8px;">
+            {{ block('intro_refund_policy') }}
+        </div>
+        {{ section('refund_policy') }}
+
+        {# ── Attachments List ── #}
+        <div style="margin:20px 0 16px; font-size:13px; font-weight:700; color:#2e1f17;">Attachments:</div>
+        <ol style="font-size:13px; color:#6b584c; margin:0 0 20px 20px; line-height:1.8;">
+            <li>Transaction Copy</li>
+            <li>Order Information</li>
+            <li>Invoice Breakup</li>
+            <li>Refund Information</li>
+            <li>Account History ({{ case.payment_method }} Cardholder Registration and Order History)</li>
+            <li>{{ case.payment_method }} Cardholder Activity Log</li>
+            <li>Checkout Page</li>
+            <li>Terms and Conditions</li>
+            <li>Refund Policy</li>
+        </ol>
+
+        {# ── Evidence by Category (Primary / Secondary) ── #}
+        {% if ev.evidence %}
+        <div style="margin-top:30px; padding-top:20px; border-top:2px solid #f7efe9;">
+            <div style="font-size:15px; font-weight:800; color:#2e1f17; margin-bottom:4px;">Evidence Categorization &mdash; {{ ev.title }}</div>
+            <p style="font-size:12px; color:#9c8578; margin-bottom:16px;">Based on reason code, evidence is categorized into primary (required to win) and secondary (supporting). Items the system already holds are marked as fetched; the rest need an upload.</p>
+
+            {# Primary Evidence #}
+            <div style="font-size:13px; font-weight:800; color:#c62828; margin-bottom:10px; text-transform:uppercase;">Primary Evidence (Required)</div>
+            {% for item in evidence_items if item.critical %}
+            <div style="background:#fce4ec; border-radius:6px; padding:12px 14px; margin-bottom:8px; border-left:4px solid #c62828;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                    <div>
+                        <span style="font-size:13px; font-weight:700; color:#c62828;">{{ item.name }}</span>
+                        <div style="font-size:11px; color:#9c8578; margin-top:2px;">{{ ev.databases[item.db].name }}</div>
+                    </div>
+                    <span style="font-size:10px; font-weight:700; color:#fff; background:#c62828; padding:2px 10px; border-radius:3px;">PRIMARY</span>
+                </div>
+                {# Two outcomes, not three. The middle branch used to say "no
+                   system source for this item — not included in the automated
+                   packet" and withhold the form, which on a required item was a
+                   dead end: 3D Secure, Undisputed transaction and Proof of
+                   delivery can never be derived from the case record, so they
+                   could never be satisfied at all. They get an upload box now,
+                   which is what makes the process semi-automated. #}
+                {% if item.source == 'system' %}
+                <div style="margin-top:8px; font-size:11.5px; font-weight:700; color:#2e7d32;">
+                    &#10003; Fetched from system &mdash; shown above under {{ documents[item.doc_key].title }}
+                </div>
+                {% else %}
+                {{ upload_box(item.name) }}
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            {# Secondary Evidence #}
+            <div style="font-size:13px; font-weight:800; color:#6b584c; margin:20px 0 10px; text-transform:uppercase;">Secondary Evidence (Supporting)</div>
+            {% for item in evidence_items if not item.critical %}
+            <div style="background:#fcf6f1; border-radius:6px; padding:12px 14px; margin-bottom:6px; border-left:3px solid #d0bcae;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                    <div>
+                        <span style="font-size:12px; font-weight:600; color:#2e1f17;">{{ item.name }}</span>
+                        <div style="font-size:11px; color:#b0998a; margin-top:2px;">{{ ev.databases[item.db].name }}</div>
+                    </div>
+                    <span style="font-size:10px; font-weight:600; color:#9c8578; background:#f7efe9; padding:2px 8px; border-radius:3px;">SECONDARY</span>
+                </div>
+                {% if item.source == 'system' %}
+                <div style="margin-top:8px; font-size:11.5px; font-weight:700; color:#2e7d32;">
+                    &#10003; Fetched from system &mdash; shown above under {{ documents[item.doc_key].title }}
+                </div>
+                {% else %}
+                {{ upload_box(item.name) }}
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if other_uploads %}
+        <div class="ce-section-title">Other Attachments:</div>
+        {% for up in other_uploads %}
+        <div class="ce-uploaded-file">
+            <div class="ce-file-row">
+                <span>&#128196;</span>
+                <a href="{{ up.url }}">{{ up.filename }}</a>
+                <span class="meta">{{ up.size_kb }} KB &middot; {{ up.uploaded_at }}</span>
+                <form method="post" action="{{ up.delete_url }}" style="display:inline;">
+                    <button type="submit" class="ce-del" title="Remove">&times;</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {# ── Conclusion ── #}
+        <div class="ce-section-title" style="color:#c62828;">Conclusion:</div>
+        <div style="margin-bottom:8px;">
+            {{ block('conclusion') }}
+        </div>
+
+        {# ── Bottom bar ── #}
+        {# Readiness is counted from the same checklist the sidebar renders, so
+           the two cannot disagree about what is attached. #}
+        {% if readiness.can_submit %}
+        <div class="ce-ready">
+            <div class="ce-ready-head">Ready to submit?</div>
+            <div class="ce-ready-rows">
+                <div class="{{ 'ok' if readiness.met == readiness.total else 'gap' }}">
+                    <b>{{ readiness.met }} of {{ readiness.total }}</b><span>evidence requirements met</span>
+                </div>
+                <div class="ok"><b>{{ readiness.documents }}</b><span>documents assembled</span></div>
+                <div class="ok"><b>{{ readiness.uploads }}</b><span>files uploaded</span></div>
+            </div>
+            {% if readiness.met < readiness.total %}
+            <div class="ce-ready-warn">
+                &#9888; {{ readiness.total - readiness.met }} requirement{{ '' if readiness.total - readiness.met == 1 else 's' }}
+                still unmet. You can still file &mdash; a thin packet before the deadline beats none &mdash;
+                {% if can_template %}but adding anything afterwards means reopening the case for rework.
+                {% else %}but you will need team-lead approval to add anything afterwards.{% endif %}
+            </div>
+            {% endif %}
+            <div class="ce-ready-note">Submitting locks this case. Only a team lead can reopen it.</div>
+        </div>
+        {% endif %}
+
+        <div class="ce-bottom">
+            <button class="ce-btn ce-btn-cancel" onclick="window.location.href='{{ url_for('chargeback_detail', case_id=case.case_id) }}'">Cancel</button>
+            <button class="ce-btn ce-btn-download" onclick="downloadEvidence()">Download Evidence</button>
+            {% if readiness.can_submit %}
+            <button class="ce-btn ce-btn-submit" id="ce-submit" onclick="submitEvidence()">Submit Evidence</button>
+            {% else %}
+            {# Same audience trap as the lock banner above. For a lead can_submit
+               is False only because the packet is already filed — refiling one is
+               a real network action, so it waits on the case being reopened. That
+               reopening is the lead's own to do, on Rework Approvals, so pointing
+               them at team-lead approval points them at themselves. #}
+            {%- if lock.locked and can_edit and lock.reopenable_here -%}
+                {%- set submit_tip = 'Already submitted — reopen it from Rework Approvals to file again' -%}
+            {%- elif lock.locked and can_edit -%}
+                {%- set submit_tip = 'Already submitted — this case is outside your team, so its own lead must reopen it' -%}
+            {%- elif lock.locked -%}
+                {%- set submit_tip = 'Already submitted — rework needs team-lead approval' -%}
+            {%- else -%}
+                {%- set submit_tip = 'This case is not yours to submit' -%}
+            {%- endif %}
+            <button class="ce-btn ce-btn-submit" disabled title="{{ submit_tip }}">
+                {{ 'Submitted' if lock.submitted else 'Submit Evidence' }}
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── Sidebar ── #}
+    <div>
+        <div class="ce-sidebar">
+            <div class="ce-sidebar-title">Winning Ratio</div>
+            <div class="ce-sidebar-bar"></div>
+            {% set colour = '#2e7d32' if ratio.winning_ratio >= 80 else ('#e65100' if ratio.winning_ratio >= 50 else '#c62828') %}
+            <div style="text-align:center; margin:12px 0;">
+                <div style="font-size:44px; font-weight:900; color:{{ colour }};">{{ ratio.winning_ratio }}%</div>
+                <div style="font-size:11.5px; color:#9c8578; margin-top:4px; line-height:1.4;">{{ ratio.assessment }}</div>
+            </div>
+            <div style="background:#f7efe9; border-radius:4px; height:8px; overflow:hidden; margin-bottom:12px;">
+                <div style="height:100%; width:{{ ratio.winning_ratio }}%; border-radius:4px; background:{{ colour }};"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:#9c8578; margin-bottom:14px;">
+                <span>Primary: <strong>{{ ratio.primary_available }}/{{ ratio.primary_total }}</strong></span>
+                <span>Secondary: <strong>{{ ratio.secondary_available }}/{{ ratio.secondary_total }}</strong></span>
+            </div>
+
+            <div class="ce-sidebar-title" style="font-size:12px;">Evidence Checklist</div>
+            <ul class="ce-sidebar-list" style="margin-top:8px;">
+                {% for item in evidence_items %}
+                <li>
+                    <span class="{{ 'have' if item.available else 'miss' }}">{{ '&#10003;'|safe if item.available else '&#9675;'|safe }}</span>
+                    <span>
+                        {{ item.name }}
+                        {% if item.critical %}<strong style="color:#c62828;">*</strong>{% endif %}
+                        <span style="color:#b0998a;">({{ item.source }})</span>
+                    </span>
+                </li>
+                {% endfor %}
+            </ul>
+            <div style="font-size:10.5px; color:#b0998a; margin-top:10px; line-height:1.5;">
+                <strong style="color:#c62828;">*</strong> primary evidence &mdash; 70% of the score.
+                Secondary evidence carries the remaining 30%.
+            </div>
+        </div>
+
+        <div class="ce-sidebar" style="margin-top:14px; position:static;">
+            <div class="ce-sidebar-title">Evidence Completion</div>
+            <div class="ce-sidebar-bar"></div>
+            <div class="ce-sidebar-desc">{{ tier_blurb }}</div>
+            <ul class="ce-sidebar-list">
+                <li>Primary evidence = 70% of score</li>
+                <li>Secondary evidence = 30% of score</li>
+                <li>All primary present = 100% possible</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+{# Confirm, then result. One overlay with two faces: the button used to open a
+   success modal without telling the server anything, so an agent could believe
+   they had filed a case still sitting in their queue. #}
+<div class="ce-modal-overlay" id="submit-modal">
+    <div class="ce-modal">
+        <div id="sm-confirm">
+            <div style="font-size:44px; margin-bottom:10px;">&#128228;</div>
+            <h3 style="margin:0 0 8px; font-size:18px; color: var(--ink, #2e1f17);">Submit to the processor?</h3>
+            <p style="font-size:13px; color: var(--ink-soft, #9c8578); margin-bottom:8px; line-height:1.6;">
+                Case {{ case.case_id }} &mdash; {{ readiness.met }} of {{ readiness.total }} evidence
+                requirements met, {{ readiness.uploads }} file{{ '' if readiness.uploads == 1 else 's' }} attached.
+            </p>
+            <p style="font-size:12.5px; color: var(--ink-soft, #9c8578); margin-bottom:18px; line-height:1.6;">
+                {# Same trap as the lock banner: a lead submitting on an agent's
+                   behalf is not the one who loses access. #}
+                <b>This locks the case.</b>
+                {% if can_template %}
+                {{ lock.owner or 'The agent who owns it' }} will not be able to add evidence or change
+                the rebuttal afterwards without your rework approval.
+                {% else %}
+                You will not be able to add evidence or change the rebuttal
+                afterwards without rework approval from your team lead.
+                {% endif %}
+            </p>
+            <div style="display:flex; gap:10px; justify-content:center;">
+                <button class="ce-btn ce-btn-cancel" onclick="closeSubmit()">Cancel</button>
+                <button class="ce-btn ce-btn-submit" id="sm-go" onclick="confirmSubmit()">Yes, submit</button>
+            </div>
+            <div id="sm-error" style="font-size:12.5px; color:#c62828; margin-top:12px;"></div>
+        </div>
+        <div id="sm-done" style="display:none;">
+            <div style="font-size:48px; margin-bottom:12px;">&#9989;</div>
+            <h3 style="margin:0 0 8px; font-size:18px; color: var(--ink, #2e1f17);">Evidence Submitted</h3>
+            <p style="font-size:13px; color: var(--ink-soft, #9c8578); margin-bottom:20px;">
+                Case {{ case.case_id }} has been filed and is now locked pending a decision.</p>
+            <button class="ce-btn ce-btn-submit" onclick="location.reload()">Close</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// The file input is hidden inside the dashed area; reveal the submit button and
+// show the chosen filename once something is picked.
+document.querySelectorAll('.ce-upload-form input[type=file]').forEach(function (input) {
+    input.addEventListener('change', function () {
+        var form = input.closest('.ce-upload-form');
+        var label = form.querySelector('.ce-upload-text');
+        if (input.files && input.files[0]) {
+            form.classList.add('picked');
+            label.textContent = input.files[0].name;
+        } else {
+            form.classList.remove('picked');
+            label.textContent = 'Paste or upload file';
+        }
+    });
+});
+
+// Textareas do not survive window.print(), so mirror their text into plain
+// divs that the print stylesheet reveals.
+function downloadEvidence() {
+    document.querySelectorAll('.ce-print-text').forEach(function (el) { el.remove(); });
+    document.querySelectorAll('.ce-textarea').forEach(function (ta) {
+        var div = document.createElement('div');
+        div.className = 'ce-print-text';
+        div.textContent = ta.value;
+        ta.parentNode.insertBefore(div, ta.nextSibling);
+    });
+    setTimeout(function () { window.print(); }, 100);
+}
+
+function submitEvidence() {
+    document.getElementById('sm-error').textContent = '';
+    document.getElementById('submit-modal').classList.add('open');
+}
+
+function closeSubmit() {
+    document.getElementById('submit-modal').classList.remove('open');
+}
+
+function confirmSubmit() {
+    var go = document.getElementById('sm-go');
+    var err = document.getElementById('sm-error');
+    go.disabled = true;
+    err.textContent = '';
+    fetch('{{ url_for("counter_submit", case_id=case.case_id) }}', {method: 'POST'})
+        .then(function (r) { return r.json().then(function (j) { return {ok: r.ok, j: j}; }); })
+        .then(function (res) {
+            if (!res.ok || !res.j.ok) {
+                err.textContent = (res.j && res.j.error) || 'That did not submit.';
+                go.disabled = false;
+                return;
+            }
+            document.getElementById('sm-confirm').style.display = 'none';
+            document.getElementById('sm-done').style.display = 'block';
+        })
+        .catch(function () {
+            err.textContent = 'That did not submit.';
+            go.disabled = false;
+        });
+}
+
+{% if can_edit %}
+/* ── Rebuttal prose ───────────────────────────────────────────────────────────
+   Saving for this case sends the rendered text; saving as a template sends the
+   raw text with its {placeholders} intact, because a template that had this
+   case's order id baked into it would be wrong for every other case. */
+
+var BLOCK_PLACEHOLDERS = {{ block_placeholders|tojson }};
+var BLOCK_SCOPE = {{ block_scope|tojson }};
+
+function blockEl(bid) {
+    return document.querySelector('.ce-block[data-block="' + bid + '"]');
+}
+
+/* Mark a block once its text differs from what the server last sent, so a lead
+   can see at a glance which boxes have unsaved changes. */
+document.querySelectorAll('.ce-block .ce-textarea').forEach(function (ta) {
+    var initial = ta.value;
+    ta.addEventListener('input', function () {
+        ta.closest('.ce-block').classList.toggle('dirty', ta.value !== initial);
+    });
+});
+
+function postBlock(url, body, bid) {
+    return fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                       body: JSON.stringify(body)})
+        .then(function (r) { return r.json().then(function (j) { return {ok: r.ok, j: j}; }); })
+        .then(function (res) {
+            if (!res.ok || !res.j.ok) {
+                alert((res.j && res.j.error) || 'That did not save.');
+                return null;
+            }
+            return res.j;
+        })
+        .catch(function () { alert('That did not save.'); return null; });
+}
+
+function saveBlock(bid, scope) {
+    var el = blockEl(bid);
+    var ta = el.querySelector('.ce-textarea');
+
+    if (scope === 'case') {
+        // What is in the box is what this one case sends. No translation.
+        postBlock('{{ url_for("counter_narrative", case_id=case.case_id) }}',
+                  {block: bid, text: ta.value}, bid)
+            .then(function (j) { if (j) { location.reload(); } });
+        return;
+    }
+
+{% if can_template %}
+    // A template applies to cases whose order id and amount are not this one's,
+    // so it is edited as the raw text with its {placeholders} showing. The box
+    // holds rendered prose until now, so swap it and let them look before
+    // saving — sending the rendered text would freeze this case into the
+    // template for every other one.
+    if (!el.classList.contains('raw-mode')) {
+        el.classList.add('raw-mode');
+        ta.dataset.rendered = ta.value;
+        ta.value = el.getAttribute('data-raw') || ta.value;
+        var bar = el.querySelector('.ce-block-bar');
+        bar.querySelectorAll('.ce-block-btn').forEach(function (b) { b.remove(); });
+        bar.querySelector('.ce-block-src').innerHTML =
+            'Editing the template for every <b>' + BLOCK_SCOPE + '</b> case. '
+          + 'Text in {braces} fills in per case.';
+        var save = document.createElement('button');
+        save.type = 'button';
+        save.className = 'ce-block-btn';
+        save.textContent = 'Save template';
+        save.onclick = function () { commitTemplate(bid); };
+        var cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'ce-block-btn ghost';
+        cancel.textContent = 'Cancel';
+        cancel.onclick = function () { location.reload(); };
+        bar.appendChild(save);
+        bar.appendChild(cancel);
+        ta.focus();
+        return;
+    }
+    commitTemplate(bid);
+{% endif %}
+}
+
+{% if can_template %}
+function commitTemplate(bid) {
+    var el = blockEl(bid);
+    var ta = el.querySelector('.ce-textarea');
+    var raw = el.getAttribute('data-raw') || '';
+    var hadTokens = BLOCK_PLACEHOLDERS.some(function (p) { return raw.indexOf(p) !== -1; });
+    var typedTokens = BLOCK_PLACEHOLDERS.some(function (p) { return ta.value.indexOf(p) !== -1; });
+    var warn = 'Save this as the template for every "' + BLOCK_SCOPE + '" case?';
+    if (hadTokens && !typedTokens) {
+        warn += '\n\nThe version you started from used placeholders like {orderid} that '
+              + 'fill in per case. What you are saving has none, so every case will show '
+              + 'these exact words.';
+    }
+    if (!confirm(warn)) { return; }
+    postBlock('{{ url_for("counter_narrative_template", case_id=case.case_id) }}',
+              {block: bid, text: ta.value, scope: 'category'}, bid)
+        .then(function (j) { if (j) { location.reload(); } });
+}
+{% endif %}
+
+function resetBlock(bid) {
+    var el = blockEl(bid);
+    var level = el.getAttribute('data-level');
+    // An agent only ever sees this button on their own case text; the template
+    // branch below is a lead's, and the route rejects it either way.
+    var msg = level === 'case'
+        ? 'Drop the text written for this case and go back to the template?'
+        : 'Remove this template so every case goes back to the built-in text?';
+    if (!confirm(msg)) { return; }
+    var url = level === 'case'
+        ? '{{ url_for("counter_narrative", case_id=case.case_id) }}'
+        {% if can_template %}: '{{ url_for("counter_narrative_template", case_id=case.case_id) }}'{% else %}: null{% endif %};
+    if (!url) { return; }
+    postBlock(url, {block: bid, text: '', scope: level === 'case' ? 'case' : 'category'}, bid)
+        .then(function (j) { if (j) { location.reload(); } });
+}
+{% endif %}
+</script>
+{% endblock %}

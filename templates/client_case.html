@@ -1,0 +1,119 @@
+{% extends "client_base.html" %}
+{% block title %}{{ case.case_id }} - {{ c.client }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .back { font-size: 12.5px; color: var(--brand-dark); text-decoration: none; font-weight: 700; }
+    .back:hover { text-decoration: underline; }
+    .kv { width: 100%; border-collapse: collapse; }
+    .kv th {
+        text-align: left; font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .4px; color: var(--ink-soft); padding: 9px 14px 9px 0;
+        width: 32%; white-space: nowrap; vertical-align: top;
+    }
+    .kv td { font-size: 13px; color: var(--ink); padding: 9px 0; border-bottom: 1px solid var(--line); }
+    .kv td.empty { color: var(--c-bcaa9d, #bcaa9d); }
+    .stage { display: flex; gap: 0; flex-wrap: wrap; margin-top: 4px; }
+    .stage div {
+        flex: 1; min-width: 110px; padding: 11px 12px; text-align: center;
+        font-size: 11.5px; font-weight: 700; color: var(--ink-muted, #9c8578);
+        background: var(--c-faf7f5, #faf7f5); border: 1px solid var(--line); border-right: none;
+    }
+    .stage div:last-child { border-right: 1px solid var(--line); }
+    .stage div.on { background: var(--brand-tint); color: var(--brand-dark); }
+    .stage div:first-child { border-radius: 10px 0 0 10px; }
+    .stage div:last-child { border-radius: 0 10px 10px 0; }
+
+    /* Matches the credentials page's buttons — this portal has no shared button
+       class and each page carries its own by convention. */
+    .case-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+    .btn {
+        display: inline-block; font-family: inherit; font-size: 12.5px; font-weight: 700;
+        padding: 9px 18px; border-radius: 9px; border: 1px solid transparent;
+        cursor: pointer; text-decoration: none;
+    }
+    .btn.primary { background: var(--brand, #f4611a); color: var(--on-accent, #fff); }
+    .btn.primary:hover { background: var(--brand-dark, #c2410c); text-decoration: none; }
+    .btn.ghost { background: var(--surface, #fff); border-color: var(--line-strong); color: var(--brand-dark); }
+    .btn.ghost:hover { border-color: var(--brand); text-decoration: none; }
+    /* Greyed rather than hidden: a merchant should be able to see the letter
+       exists and why they cannot open it yet. */
+    .btn.off {
+        background: var(--c-faf7f5, #faf7f5); border-color: var(--line);
+        color: var(--ink-muted, #9c8578); cursor: not-allowed;
+    }
+    .btn-note { font-size: 11.5px; color: var(--ink-soft); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="client-head">
+    <a class="back" href="{{ url_for('client_chargebacks') }}">&larr; All chargebacks</a>
+    <h2 style="margin-top:8px;">{{ case.case_id }}</h2>
+    <p>{{ case.get('scenario') or case.get('chargeback_category') or 'Dispute' }}</p>
+    <div class="case-actions">
+        <a class="btn primary" href="{{ url_for('client_processor', case_id=case.case_id) }}">View in Processor Portal</a>
+        {% if filed %}
+        <a class="btn ghost" href="{{ url_for('client_letter', case_id=case.case_id) }}">Rebuttal Letter</a>
+        {% else %}
+        <span class="btn off" aria-disabled="true">Rebuttal Letter</span>
+        <span class="btn-note">Available once we file your evidence with the network.</span>
+        {% endif %}
+    </div>
+</div>
+
+{# Stage, not internal workflow state: the merchant wants to know where their
+   money is, not which queue the case sits in. #}
+<div class="panel">
+    <div class="panel-head">
+        <div><h3>Where this case stands</h3><div class="sub">We will tell you if we need anything from you.</div></div>
+    </div>
+    {# One definition of "filed", computed by the route, so the strip and the
+       buttons above cannot disagree with the routes behind them. #}
+    {% set submitted = filed %}
+    {% set decided = case.get('outcome') not in ('Pending', '', None) %}
+    <div class="stage">
+        <div class="on">Dispute received</div>
+        <div class="{{ 'on' if submitted or decided else '' }}">Evidence filed</div>
+        <div class="{{ 'on' if decided else '' }}">Decision</div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-head"><div><h3>The dispute</h3></div></div>
+    <table class="kv">
+        <tr><th>Raised</th><td>{{ (case.get('dispute_creation_date') or '')[:10] or '—' }}</td></tr>
+        <tr><th>Amount</th><td><b>{{ case.get('currency', 'USD') }} {{ "%.2f"|format(case.get('amount', 0)) }}</b></td></tr>
+        <tr><th>Card network</th><td>{{ case.get('payment_method') or '—' }}</td></tr>
+        <tr><th>Reason code</th><td>{{ reason_label(case.get('reason_code'), case.get('payment_method')) or '—' }}</td></tr>
+        <tr><th>Reason</th><td>{{ case.get('reason_description') or case.get('chargeback_category') or '—' }}</td></tr>
+        <tr><th>Respond by</th><td>{{ (case.get('due_date') or '')[:10] or '—' }}</td></tr>
+        <tr>
+            <th>Evidence filed</th>
+            <td>{% if submitted %}<span class="pill ok">Submitted</span>
+                {% else %}<span class="pill wait">{{ case.get('submission_status') or 'Not yet' }}</span>{% endif %}</td>
+        </tr>
+        <tr>
+            <th>Outcome</th>
+            <td>{% if case.get('outcome') == 'Win' %}<span class="pill ok">Won</span>
+                {% elif case.get('outcome') == 'Lost' %}<span class="pill bad">Lost</span>
+                {% else %}<span class="pill wait">{{ case.get('outcome') or 'Pending' }}</span>{% endif %}</td>
+        </tr>
+    </table>
+</div>
+
+<div class="panel">
+    <div class="panel-head">
+        <div><h3>The order</h3><div class="sub">What we hold on file for this transaction.</div></div>
+    </div>
+    {% set src = case.get('source') or {} %}
+    <table class="kv">
+        <tr><th>Order ID</th><td>{{ src.get('OrderId') or case.get('order_id') or '—' }}</td></tr>
+        <tr><th>Order date</th><td>{{ src.get('OrderDate') or '—' }}</td></tr>
+        <tr><th>Product</th><td>{{ src.get('ProductName') or '—' }}</td></tr>
+        <tr><th>Delivery status</th><td>{{ src.get('DeliveryStatus') or '—' }}</td></tr>
+        <tr><th>Tracking number</th><td>{{ src.get('TrackingNumber') or '—' }}</td></tr>
+        <tr><th>Customer</th><td>{{ src.get('UserFullName') or case.get('cardholder') or '—' }}</td></tr>
+    </table>
+</div>
+{% endblock %}

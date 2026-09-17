@@ -1,0 +1,252 @@
+<script>
+var REP = JSON.parse(document.getElementById('rep-data').textContent);
+var CUR = null;          // {kind, key} currently open, null when closed
+var EDITING = false;
+
+function esc(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function show(title, sub, html) {
+    document.getElementById('rep-title').textContent = title;
+    document.getElementById('rep-sub').textContent = sub || '';
+    document.getElementById('rep-body').innerHTML = html;
+    document.getElementById('rep-overlay').classList.add('open');
+}
+
+function closeRep() {
+    document.getElementById('rep-overlay').classList.remove('open');
+    CUR = null;
+    EDITING = false;
+}
+
+/* Show or hide the footer controls for whatever is open. A document that is
+   not a policy has no editable text, so the footer stays hidden for it. */
+function setFoot(kind, key, canEdit, edited, by, at) {
+    var foot = document.getElementById('rep-foot');
+    if (!foot) { return; }                       // agent page has no footer
+    CUR = canEdit ? {kind: kind, key: key} : null;
+    foot.hidden = !canEdit;
+    if (!canEdit) { return; }
+    document.getElementById('rep-status').textContent =
+        edited ? ('Edited by ' + by + (at ? ' on ' + at : '')) : 'Built-in text';
+    document.getElementById('rep-revert').hidden = !edited;
+    document.getElementById('rep-edit').hidden = false;
+    document.getElementById('rep-save').hidden = true;
+    document.getElementById('rep-cancel').hidden = true;
+    EDITING = false;
+}
+
+function openLetter(key) {
+    var l = REP.letters.filter(function (x) { return x.key === key; })[0];
+    if (!l) { return; }
+    var h = '';
+    if (l.intro) { h += '<h5>Opening</h5><pre>' + esc(l.intro) + '</pre>'; }
+    if (l.primary_text) {
+        h += '<h5>' + esc(l.primary_label || 'Primary defence') + '</h5>'
+           + '<pre>' + esc(l.primary_text) + '</pre>';
+    }
+    if (l.secondary_text) {
+        h += '<h5>' + esc(l.secondary_label || 'Secondary defence') + '</h5>'
+           + '<pre>' + esc(l.secondary_text) + '</pre>';
+    }
+    if (l.points && l.points.length) {
+        h += '<h5>Defence points</h5><ul>';
+        l.points.forEach(function (p) { h += '<li>' + esc(p) + '</li>'; });
+        h += '</ul>';
+    }
+    if (l.conclusion) { h += '<h5>Closing</h5><pre>' + esc(l.conclusion) + '</pre>'; }
+    // The stored copy is a template, so the braces are deliberate.
+    h += '<div class="tok-note">Text in <b>{braces}</b> is filled from the case '
+       + 'when the letter is generated &mdash; merchant name, reason code, amount and dates.'
+       + (REP.editable ? ' Edit this from the counter evidence page of any case in this '
+                       + 'category, where you can see it in the packet it belongs to.' : '')
+       + '</div>';
+    show(l.label, l.subheading, h);
+    // Read-only here. The counter page is where letters are written now.
+    setFoot('cover_letter', key, false, l.edited, l.edited_by, l.edited_at);
+}
+
+function openDoc(key) {
+    var d = REP.documents.filter(function (x) { return x.key === key; })[0];
+    if (!d) { return; }
+    var h = '<p>' + esc(d.blurb) + '</p>';
+    if (d.columns && d.columns.length) {
+        h += '<h5>Fields included</h5><div>';
+        d.columns.forEach(function (c) { h += '<span class="col-pill">' + esc(c) + '</span>'; });
+        h += '</div>';
+    } else {
+        h += '<h5>Type</h5><p>Policy document &mdash; standing merchant terms rather '
+           + 'than per-case fields.</p>';
+    }
+    if (d.policy && d.body) {
+        h += '<h5>Current text</h5><pre>' + esc(d.body) + '</pre>';
+    }
+    h += '<div class="tok-note">Generated per case from the client record, so the '
+       + 'values differ for every chargeback this is pulled into.'
+       + (REP.editable && d.policy ? ' Rewrite this from the counter evidence page of '
+                                   + 'any case, in the section it appears in.' : '')
+       + '</div>';
+    show((d.icon ? d.icon + ' ' : '') + d.title, '', h);
+    // Read-only here, policy or not — documents are written on the counter page.
+    setFoot('policy', key, false, d.edited, d.edited_by, d.edited_at);
+}
+
+function openSop(key) {
+    var s = REP.sops.filter(function (x) { return x.key === key; })[0];
+    if (!s) { return; }
+    show('📜 ' + s.title, s.seeded ? 'Built-in procedure' : 'Added by a team lead',
+         '<pre>' + esc(s.body) + '</pre>');
+    // SOPs never appear on a case, so this page is the only place they can be
+    // written — the one kind that keeps its editor here.
+    setFoot('sop', key, !!REP.editable, s.edited, s.edited_by, s.edited_at);
+}
+
+/* ── Editing ─────────────────────────────────────────────────────────────────
+   Only served to a team lead. An agent's page has no footer to hang these off,
+   and shipping the save calls to a role whose POSTs are rejected anyway would
+   just be dead weight. The routes carry the real check either way. */
+{% if editable|default(false) %}
+
+function field(name, label, value, rows, hint) {
+    return '<label class="rep-field"><span>' + esc(label) + '</span>'
+         + (hint ? '<em>' + esc(hint) + '</em>' : '')
+         + '<textarea data-field="' + esc(name) + '" rows="' + rows + '">'
+         + esc(value) + '</textarea></label>';
+}
+
+function startEdit() {
+    if (!CUR) { return; }
+    var h = '';
+    if (CUR.kind === 'cover_letter') {
+        var l = REP.letters.filter(function (x) { return x.key === CUR.key; })[0];
+        h += '<div class="tok-note">Placeholders stay live: ' + REP.placeholders.join(' ')
+           + '. Leave a box empty to keep the built-in text for that part.</div>';
+        h += field('intro', 'Opening', l.intro, 6);
+        h += field('primary_defense_text', l.primary_label || 'Primary defence', l.primary_text, 4);
+        h += field('secondary_defense_text', l.secondary_label || 'Secondary defence', l.secondary_text, 4);
+        h += field('defense_points', 'Defence points', (l.points || []).join('\n'), 5,
+                   'One per line.');
+        h += field('conclusion', 'Closing', l.conclusion, 4);
+    } else if (CUR.kind === 'policy') {
+        var d = REP.documents.filter(function (x) { return x.key === CUR.key; })[0];
+        h += '<div class="tok-note">This replaces the generated policy clauses in every '
+           + 'packet. The order facts at the top of the document are kept. Leave it empty '
+           + 'to go back to the generated text.</div>';
+        h += field('body', d.title, d.body || '', 16,
+                   'Blank line between paragraphs.');
+    } else {
+        var s = REP.sops.filter(function (x) { return x.key === CUR.key; })[0] || {};
+        h += field('title', 'Title', s.title || '', 1);
+        h += field('body', 'Procedure', s.body || '', 16, 'Blank line between paragraphs.');
+    }
+    document.getElementById('rep-body').innerHTML = h;
+    document.getElementById('rep-edit').hidden = true;
+    document.getElementById('rep-revert').hidden = true;
+    document.getElementById('rep-save').hidden = false;
+    document.getElementById('rep-cancel').hidden = false;
+    EDITING = true;
+}
+
+function cancelEdit() {
+    if (!CUR) { return closeRep(); }
+    reopen(CUR.kind, CUR.key);
+}
+
+function reopen(kind, key) {
+    if (kind === 'cover_letter') { openLetter(key); }
+    else if (kind === 'policy') { openDoc(key); }
+    else { openSop(key); }
+}
+
+function collect() {
+    var out = {};
+    document.querySelectorAll('#rep-body [data-field]').forEach(function (el) {
+        var name = el.getAttribute('data-field');
+        var v = el.value;
+        if (name === 'defense_points') {
+            out[name] = v.split('\n').map(function (s) { return s.trim(); })
+                         .filter(function (s) { return s; });
+        } else {
+            out[name] = v;
+        }
+    });
+    return out;
+}
+
+function post(url, body, done) {
+    fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)})
+        .then(function (r) { return r.json().then(function (j) { return {ok: r.ok, j: j}; }); })
+        .then(function (res) {
+            if (!res.ok || !res.j.ok) {
+                alert(res.j.error || 'That did not save.');
+                return;
+            }
+            done(res.j);
+        })
+        .catch(function () { alert('That did not save.'); });
+}
+
+function saveTemplate() {
+    if (!CUR) { return; }
+    var fields = collect();
+    if (CUR.kind === 'sop') {
+        if (!fields.title || !fields.body || !fields.title.trim() || !fields.body.trim()) {
+            alert('A procedure needs a title and a body.');
+            return;
+        }
+        post('/admin/repository/sop',
+             {key: CUR.key, title: fields.title, body: fields.body},
+             function () { location.reload(); });
+        return;
+    }
+    post('/admin/repository/template', {kind: CUR.kind, key: CUR.key, fields: fields},
+         function () { location.reload(); });
+}
+
+function revertTemplate() {
+    if (!CUR) { return; }
+    if (!confirm('Put this template back to its built-in text?')) { return; }
+    if (CUR.kind === 'sop') {
+        post('/admin/repository/sop', {key: CUR.key, 'delete': true},
+             function () { location.reload(); });
+        return;
+    }
+    post('/admin/repository/template', {kind: CUR.kind, key: CUR.key, fields: {}},
+         function () { location.reload(); });
+}
+
+function newSop() {
+    var name = prompt('Name for the new procedure');
+    if (!name || !name.trim()) { return; }
+    var key = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
+                  .replace(/^-|-$/g, '').slice(0, 64);
+    if (!key) { alert('That name has no letters or digits in it.'); return; }
+    if (REP.sops.some(function (s) { return s.key === key; })) {
+        alert('A procedure by that name already exists.');
+        return;
+    }
+    CUR = {kind: 'sop', key: key};
+    show('📜 ' + name.trim(), 'New procedure', '');
+    var foot = document.getElementById('rep-foot');
+    if (foot) { foot.hidden = false; }
+    document.getElementById('rep-status').textContent = 'Not saved yet';
+    document.getElementById('rep-revert').hidden = true;
+    startEdit();
+    // startEdit prefills from REP.sops, which has no entry yet, so the title
+    // box comes back empty — seed it with what they typed.
+    var t = document.querySelector('#rep-body [data-field="title"]');
+    if (t) { t.value = name.trim(); }
+}
+
+{% endif %}
+
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+        if (EDITING && !confirm('Discard this edit?')) { return; }
+        closeRep();
+    }
+});
+</script>

@@ -1,0 +1,107 @@
+{# Shared by the agent and team-lead repository pages. The two differ only in
+   their header and access note, so the library itself lives in one place
+   rather than being kept in step by hand across two files. #}
+<style>
+    .rep-section { margin-bottom: 30px; }
+    .rep-section > h3 {
+        font-size: 13px; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .5px; color: var(--ink-soft); margin: 0 0 4px;
+    }
+    .rep-section > .sub { font-size: 12.5px; color: var(--c-8a7364, #8a7364); margin-bottom: 14px; }
+    .rep-section > h3 .rep-add {
+        float: right; font-size: 11px; font-weight: 700; text-transform: none;
+        letter-spacing: 0; padding: 4px 10px; border-radius: 7px; cursor: pointer;
+        border: 1px solid var(--line); background: var(--surface, #fff); color: var(--ink);
+    }
+    .rep-section > h3 .rep-add:hover { background: var(--c-f6f1ec, #f6f1ec); }
+
+    /* An edited card is marked on the card itself, so a lead can see at a
+       glance which templates have drifted from the built-in text. */
+    .rep-card.is-edited { border-color: #c9a227; }
+    .edit-dot { color: #c9a227; font-size: 9px; margin-left: 6px; vertical-align: middle; }
+
+    .rep-foot {
+        display: flex; align-items: center; gap: 8px; padding: 12px 20px;
+        border-top: 1px solid var(--line); background: var(--c-faf7f4, #faf7f4);
+    }
+    .rep-status { flex: 1; font-size: 12px; color: var(--c-8a7364, #8a7364); }
+    .rep-btn {
+        font-size: 12px; font-weight: 700; padding: 7px 14px; border-radius: 8px;
+        cursor: pointer; border: 1px solid var(--line); background: var(--surface, #fff); color: var(--ink);
+    }
+    .rep-btn:hover { background: var(--c-f6f1ec, #f6f1ec); }
+    .rep-btn.primary { background: var(--ink); color: var(--on-accent, #fff); border-color: var(--ink); }
+    .rep-btn.primary:hover { opacity: .88; }
+    .rep-btn.ghost { color: var(--c-8a7364, #8a7364); }
+
+    .rep-field { display: block; margin-bottom: 14px; }
+    .rep-field > span { display: block; font-size: 12px; font-weight: 800; margin-bottom: 3px; }
+    .rep-field > em { display: block; font-size: 11px; color: var(--c-8a7364, #8a7364); margin-bottom: 5px; font-style: normal; }
+    .rep-field textarea {
+        width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px;
+        line-height: 1.55; padding: 9px 11px; border: 1px solid var(--line);
+        border-radius: 8px; background: var(--surface, #fff); color: var(--ink); resize: vertical;
+    }
+    .rep-field textarea:focus { outline: 2px solid rgba(201,162,39,.35); outline-offset: -1px; }
+
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); gap: 14px; }
+    .rep-card {
+        background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 12px;
+        padding: 15px 17px; box-shadow: 0 2px 8px rgba(0,0,0,.05);
+        text-align: left; cursor: pointer; font-family: inherit; width: 100%;
+        border-left: 3px solid var(--brand);
+    }
+    .rep-card:hover { border-color: var(--brand); box-shadow: 0 4px 14px rgba(244,97,26,.14); }
+    .rep-card .t { font-size: 14px; font-weight: 800; color: var(--ink); }
+    .rep-card .b { font-size: 12px; color: var(--c-8a7364, #8a7364); margin-top: 4px; line-height: 1.45; }
+    .rep-card .meta { font-size: 11px; color: var(--c-a08b7c, #a08b7c); margin-top: 8px; }
+    .doc-card { border-left-color: #2e7d32; }
+    .doc-card .ic { font-size: 17px; margin-right: 7px; }
+
+    .col-pill {
+        display: inline-block; background: var(--c-f4f1ef, #f4f1ef); color: var(--c-6d6259, #6d6259);
+        border-radius: 5px; padding: 2px 7px; font-size: 10.5px;
+        font-weight: 700; margin: 3px 3px 0 0;
+    }
+
+    /* Viewer — the point of the page: see the real template, not a tile. */
+    .rep-overlay {
+        display: none; position: fixed; inset: 0; background: rgba(30,18,10,.55);
+        z-index: 900; align-items: center; justify-content: center; padding: 26px;
+    }
+    .rep-overlay.open { display: flex; }
+    .rep-modal {
+        background: var(--surface, #fff); border-radius: 14px; max-width: 780px; width: 100%;
+        max-height: 86vh; display: flex; flex-direction: column;
+        box-shadow: 0 18px 50px rgba(0,0,0,.3);
+    }
+    .rep-modal header {
+        padding: 17px 22px; border-bottom: 1px solid var(--line);
+        display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+    }
+    .rep-modal header h4 { margin: 0; font-size: 16px; font-weight: 800; color: var(--ink); }
+    .rep-modal header .s { font-size: 12px; color: var(--c-8a7364, #8a7364); margin-top: 3px; }
+    .rep-close {
+        border: none; background: none; font-size: 24px; line-height: 1;
+        color: var(--c-a08b7c, #a08b7c); cursor: pointer; padding: 0 2px;
+    }
+    .rep-close:hover { color: var(--brand-dark); }
+    .rep-body { padding: 20px 22px; overflow-y: auto; }
+    .rep-body h5 {
+        font-size: 11px; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .5px; color: var(--brand-dark); margin: 18px 0 6px;
+    }
+    .rep-body h5:first-child { margin-top: 0; }
+    .rep-body p, .rep-body li { font-size: 13px; color: var(--c-4a3a2e, #4a3a2e); line-height: 1.6; }
+    .rep-body pre {
+        white-space: pre-wrap; font-family: inherit; font-size: 13px;
+        color: var(--c-4a3a2e, #4a3a2e); line-height: 1.6; margin: 0;
+    }
+    .rep-body ul { margin: 6px 0 0 18px; }
+    /* The stored text carries {placeholder} tokens that a real case fills in.
+       Flagging them stops a reader mistaking them for a rendering fault. */
+    .tok-note {
+        margin-top: 16px; padding: 9px 13px; background: var(--brand-tint);
+        border-radius: 8px; font-size: 11.5px; color: var(--c-7a5c49, #7a5c49);
+    }
+</style>

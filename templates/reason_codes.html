@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Reason Codes - Chargeback Command Center{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:30px;">
+    <h2 style="font-size:24px; font-weight:700; margin-bottom:8px;">Chargeback Reason Codes Reference</h2>
+    <p style="color:#666; font-size:14px;">Complete guide to all supported reason codes with network mappings, defense strategies, and required supporting documents for marketplace disputes.</p>
+</div>
+
+<div class="reason-code-grid">
+    {% for code_id, code in codes.items() %}
+    <a href="{{ url_for('reason_code_detail', code_id=code_id) }}" style="text-decoration:none; color:inherit;">
+        <div class="reason-card">
+            <div class="code-num">{{ code_id }}</div>
+            <div class="code-title">{{ code.title }}</div>
+            <div class="code-desc">{{ code.definition[:120] }}...</div>
+            <div class="network-badges">
+                {% for network, ncode in code.network_codes.items() %}
+                {% if ncode %}
+                <span class="network-badge {{ network|lower }}">{{ network }}</span>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <div style="margin-top:12px;">
+                {% for s in code.scenarios %}
+                <span class="scenario-tag" style="background:#f5f5f5; color:#555; padding:2px 10px; border-radius:12px; font-size:11px; display:inline-block; margin:2px;">{{ s }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}

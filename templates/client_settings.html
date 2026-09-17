@@ -1,0 +1,22 @@
+{% extends "client_base.html" %}
+{% block title %}Settings - {{ c.client }}{% endblock %}
+
+{% block content %}
+<div class="client-head">
+    <h2>Settings</h2>
+    <p>Your account details and password.</p>
+    <span class="scope-note">&#128100; Signed in as {{ session.user }} &mdash; {{ c.client }}</span>
+</div>
+
+{# No theme card: the portal carries Straive's branding to a customer, so the
+   colour of it is not a per-merchant preference. #}
+{% with show_theme = false %}{% include "_account_settings.html" %}{% endwith %}
+
+<div style="margin-top:24px; max-width:660px; padding:14px 18px;
+            background: var(--brand-wash, #fff7f2); border:1px dashed var(--line-strong);
+            border-radius:12px; font-size:12.5px; color: var(--ink-soft-2, #7a6558); line-height:1.6;">
+    <b>Your merchant account details</b> &mdash; corp name, MID, descriptor and the rest &mdash; are on
+    the Dashboard. They are maintained by your account manager rather than here, so a change to your
+    processing setup goes through them.
+</div>
+{% endblock %}

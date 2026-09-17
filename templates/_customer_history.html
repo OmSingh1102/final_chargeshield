@@ -1,0 +1,120 @@
+{# Customer history pane — included by case_detail and chargeback_detail.
+
+   One partial rather than two copies: the chargeback page used to carry its own
+   "Related Chargeback" table, which was a single hardcoded row echoing the
+   current case back at itself under a "User ID" header sitting over the PSP
+   reference. Sharing this means the two pages cannot drift.
+
+   Expects `history` from CustomerHistory.for_case(case, CASES).
+   Styles are inline var(--token, #fallback), matching the other partials, so
+   this needs no stylesheet change. #}
+{% set p = history.profile %}
+<div class="detail-card" style="margin-top:16px;">
+    <h3>&#128100; Customer History
+        {% if history.total %}
+        <span style="font-size:12px; font-weight:600; color:var(--ink-soft, #7a6558); margin-left:6px;">
+            {{ history.total }} other case{{ '' if history.total == 1 else 's' }} for this customer
+        </span>
+        {% endif %}
+    </h3>
+
+    {# ── The issuer's own view of this customer ── #}
+    {% if p.has_sheet_row %}
+    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+        {% set tier_colour = {'High': '#c62828', 'Medium': '#e65100', 'Low': '#2e7d32'} %}
+        {% for label, value in [
+            ('Customer', p.name),
+            ('Prior chargebacks', p.prior_chargebacks ~ (' (' ~ p.prior_won ~ ' won)' if p.prior_chargebacks else '')),
+            ('Dispute rate', '%.2f'|format(p.dispute_rate_pct) ~ '%'),
+            ('Lifetime orders', p.lifetime_orders),
+            ('Account opened', p.account_created),
+            ('Account status', p.account_status),
+            ('KYC verified', p.kyc_verified),
+        ] %}
+        <div style="background:var(--surface-2, #f7efe9); border-radius:8px; padding:7px 12px; font-size:12px;">
+            <span style="color:var(--ink-faint, #b0998a); font-weight:600;">{{ label }}</span>
+            <span style="color:var(--ink-2, #2e1f17); font-weight:700; margin-left:6px;">{{ value }}</span>
+        </div>
+        {% endfor %}
+        <div style="background:{{ tier_colour.get(p.risk_tier, '#7a6558') }}1a; border-radius:8px; padding:7px 12px; font-size:12px;">
+            <span style="color:var(--ink-faint, #b0998a); font-weight:600;">Risk tier</span>
+            <span style="color:{{ tier_colour.get(p.risk_tier, '#7a6558') }}; font-weight:800; margin-left:6px;">{{ p.risk_tier }}</span>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Confirmed: shares a card, an email or a phone number ── #}
+    {% if history.confirmed %}
+    <div style="font-size:12px; font-weight:700; color:var(--ink-2, #2e1f17); margin:4px 0 6px;">
+        Same customer &mdash; matched on card number, email or phone
+    </div>
+    <div style="overflow-x:auto;">
+    <table class="cb-rel-table" style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead>
+            <tr>
+                <th style="text-align:left; padding:6px 8px; font-size:11px; color:var(--ink-faint, #b0998a);">Case ID</th>
+                <th style="text-align:left; padding:6px 8px; font-size:11px; color:var(--ink-faint, #b0998a);">Dispute Date</th>
+                <th style="text-align:left; padding:6px 8px; font-size:11px; color:var(--ink-faint, #b0998a);">Network</th>
+                <th style="text-align:left; padding:6px 8px; font-size:11px; color:var(--ink-faint, #b0998a);">Reason</th>
+                <th style="text-align:left; padding:6px 8px; font-size:11px; color:var(--ink-faint, #b0998a);">Amount</th>
+                <th style="text-align:left; padding:6px 8px; font-size:11px; color:var(--ink-faint, #b0998a);">Outcome</th>
+                <th style="text-align:left; padding:6px 8px; font-size:11px; color:var(--ink-faint, #b0998a);">Matched On</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in history.confirmed %}
+            <tr>
+                <td style="padding:8px; border-bottom:1px solid var(--c-f5f5f5, #f5f5f5);">
+                    <a href="{{ url_for('case_detail', case_id=r.case_id) }}"
+                       style="font-family:monospace; font-weight:700; color:var(--brand, #f4611a); text-decoration:none;">{{ r.case_id }}</a>
+                </td>
+                <td style="padding:8px; border-bottom:1px solid var(--c-f5f5f5, #f5f5f5);">{{ r.dispute_date or '&mdash;'|safe }}</td>
+                <td style="padding:8px; border-bottom:1px solid var(--c-f5f5f5, #f5f5f5);">{{ r.network }}</td>
+                <td style="padding:8px; border-bottom:1px solid var(--c-f5f5f5, #f5f5f5);">{{ reason_label(r.reason_code, r.network) }}</td>
+                <td style="padding:8px; border-bottom:1px solid var(--c-f5f5f5, #f5f5f5);"><b>{{ r.currency }} {{ "%.2f"|format(r.amount) }}</b></td>
+                <td style="padding:8px; border-bottom:1px solid var(--c-f5f5f5, #f5f5f5);">{{ r.outcome }}</td>
+                <td style="padding:8px; border-bottom:1px solid var(--c-f5f5f5, #f5f5f5);">
+                    {% for m in r.matched_on %}<span style="background:var(--brand-tint, #ffeadd); color:var(--brand, #f4611a); border-radius:4px; padding:2px 7px; font-size:11px; font-weight:700; margin-right:3px;">{{ m }}</span>{% endfor %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    {# ── Same name only. Shown, but never counted as the same person. ── #}
+    {% if history.same_name %}
+    <div style="margin-top:14px; padding:10px 12px; border-left:3px solid var(--c-b6a79c, #b6a79c); background:var(--surface-2, #f7efe9); border-radius:0 8px 8px 0;">
+        <div style="font-size:12px; font-weight:700; color:var(--ink-soft-2, #7a6558);">
+            Same name only &mdash; not confirmed as the same customer
+        </div>
+        <div style="font-size:11.5px; color:var(--ink-soft, #7a6558); margin:3px 0 8px;">
+            These cases share the cardholder name but no card number, email or phone. They are
+            most likely a different person and are listed here only so the name collision is visible.
+        </div>
+        {% for r in history.same_name %}
+        <div style="font-size:12px; margin-bottom:3px;">
+            <a href="{{ url_for('case_detail', case_id=r.case_id) }}"
+               style="font-family:monospace; font-weight:700; color:var(--ink-soft-2, #7a6558);">{{ r.case_id }}</a>
+            <span style="color:var(--ink-soft, #7a6558);">
+                &middot; {{ r.dispute_date }} &middot; {{ r.network }} &middot;
+                {{ r.currency }} {{ "%.2f"|format(r.amount) }} &middot; {{ r.outcome }}
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ── Nothing found. Say what was searched, so this reads as an answer. ── #}
+    {% if not history.confirmed and not history.same_name %}
+    <div style="font-size:12.5px; color:var(--ink-soft, #7a6558); padding:10px 0 2px;">
+        No other chargebacks for this customer in the current book.
+        {% if history.searched %}
+        Searched on {{ history.searched|join(', ') }}.
+        {% else %}
+        This case carries no customer identifiers to search on.
+        {% endif %}
+    </div>
+    {% endif %}
+</div>

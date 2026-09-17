@@ -1,0 +1,107 @@
+{% extends "manager_base.html" %}
+{% block title %}System Settings - Management Console{% endblock %}
+
+{% block extra_css %}
+<style>
+    .set-list { max-width: 760px; display: flex; flex-direction: column; gap: 12px; }
+    .set-row {
+        display: flex; justify-content: space-between; align-items: center; gap: 18px;
+        background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 14px;
+        padding: 17px 20px; box-shadow: var(--shadow);
+    }
+    .set-row .t { font-size: 14px; font-weight: 700; color: var(--ink); }
+    .set-row .d { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+    .set-row .val { font-size: 13px; font-weight: 700; color: var(--brand-dark); white-space: nowrap; }
+    .set-row .pill { white-space: nowrap; }
+    h3.sec { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-soft); margin: 26px 0 10px; }
+    h3.sec:first-of-type { margin-top: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mgr-head">
+    <h2>System Settings</h2>
+    <p>Platform configuration and the accounts that can reach it.</p>
+    <span class="scope-note">{{ icon('settings') }} Management only</span>
+</div>
+
+{% include "_account_settings.html" %}
+
+<div class="set-list" style="margin-top:22px;">
+    <h3 class="sec">Data</h3>
+    <div class="set-row">
+        <div><div class="t">Loaded case book</div><div class="d">Ingested from {{ active_dataset or 'no sheet yet' }}.</div></div>
+        <span class="val">{{ m.sources.total }} cases</span>
+    </div>
+    {# Said "Merge" and "tops up the book" until ingest was changed to replace
+       under a single active dataset. #}
+    <div class="set-row">
+        <div><div class="t">Upload behaviour</div><div class="d">An ingested sheet replaces the book &mdash; the platform holds one active dataset at a time.</div></div>
+        <span class="val">Replace</span>
+    </div>
+    {# Was "{{ m.totals.cases }} rows", a count standing in for a name. The
+       dataset has a filename now: StateStore.active_dataset(), the same value
+       _load_startup_cases() reads at boot. #}
+    <div class="set-row">
+        <div><div class="t">Active dataset</div><div class="d">Reloaded automatically at boot, so an ingest outlives the process.</div></div>
+        <span class="val">{{ active_dataset }}</span>
+    </div>
+    {# Reported even with no case list loaded: a reference sheet is configured
+       independently of one, and an empty book is exactly the state where
+       knowing whether the backend is ready matters most. #}
+    <div class="set-row">
+        <div><div class="t">Backend reference</div><div class="d">Joined to every ingested case on DisputeId. Supplies the detail; never creates cases.</div></div>
+        <span class="val">{% if reference_dataset %}{{ reference_count }} disputes{% else %}None{% endif %}</span>
+    </div>
+
+    <h3 class="sec">Team</h3>
+    <div class="set-row">
+        <div><div class="t">Team leads</div><div class="d">{{ m.team_leads|join(', ') }}</div></div>
+        <span class="val">{{ m.team_leads|length }}</span>
+    </div>
+    <div class="set-row">
+        <div><div class="t">Agents</div><div class="d">Assigned across leads on the Onboarding page.</div></div>
+        <span class="val">{{ m.filters.agents|length }}</span>
+    </div>
+    <div class="set-row">
+        <div><div class="t">Daily target per agent</div><div class="d">Cases each agent is measured against.</div></div>
+        <span class="val">60 / day</span>
+    </div>
+
+    <h3 class="sec">Accounts</h3>
+    <div class="set-row">
+        <div><div class="t">Password policy</div><div class="d">Every account must change its password every {{ pw_max_age }} days; past that, sign-in opens onto a change screen and nothing else.</div></div>
+        <span class="val">{{ pw_max_age }} days</span>
+    </div>
+    <div class="set-row">
+        <div><div class="t">Password storage</div><div class="d">A password a user sets is stored as a salted PBKDF2-SHA256 hash. The built-in demo logins are still plaintext &mdash; they are printed on the sign-in card.</div></div>
+        <span class="pill">Hashed</span>
+    </div>
+    <div class="set-row">
+        <div><div class="t">Session security</div><div class="d">The session cookie is signed with a dev constant. This is still a demo gate, not an access control.</div></div>
+        <span class="pill bad">Demo only</span>
+    </div>
+    {# Sat under "Not yet built" claiming no PSP logins were stored, long after
+       the client portal's encrypted vault existed. Moved and corrected. #}
+    <div class="set-row">
+        <div><div class="t">Third-party credentials</div><div class="d">Merchants store gateway, processor, CRM and shipping logins in their portal's credential vault &mdash; Fernet-encrypted at rest, provider-specific field sets, never re-displayed. Connection state drives the evidence pages; nothing fetches from those systems yet.</div></div>
+        <span class="pill ok">Working</span>
+    </div>
+
+    <h3 class="sec">Not yet built</h3>
+    <div class="set-row">
+        <div><div class="t">User management</div><div class="d">Accounts are a fixed table in <code>app.py</code>; profiles hang off it, but there is still no way to add or disable people.</div></div>
+        <span class="pill wait">Not built</span>
+    </div>
+    <div class="set-row">
+        <div><div class="t">Notifications &amp; deadline alerts</div><div class="d">No scheduler or delivery channel exists yet.</div></div>
+        <span class="pill wait">Not built</span>
+    </div>
+</div>
+
+<div class="stub-note" style="max-width:760px;">
+    <b>Read-only for now.</b> These reflect how the platform is actually configured rather than
+    offering controls that would not persist. Tell me which of them you want to become editable and
+    what should back them, and I will wire those up.
+</div>
+{% endblock %}

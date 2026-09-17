@@ -1,0 +1,154 @@
+{% extends "client_base.html" %}
+{% block title %}Chargeback Management - {{ c.client }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-bar {
+        display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+        background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 14px;
+        padding: 14px 18px; box-shadow: var(--shadow); margin-bottom: 16px;
+    }
+    .filter-bar label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-soft); }
+    .filter-bar select, .filter-bar input {
+        padding: 7px 12px; border: 1px solid var(--line-strong); border-radius: 8px;
+        background: var(--c-fffbf8, #fffbf8); font-family: inherit; font-size: 13px; color: var(--ink);
+    }
+    .filter-bar input { min-width: 200px; }
+    .filter-bar select:focus, .filter-bar input:focus { outline: none; border-color: var(--brand); }
+    .clear-btn {
+        padding: 7px 14px; border: 1px solid var(--line-strong); border-radius: 8px;
+        background: var(--surface, #fff); font-family: inherit; font-size: 12.5px; font-weight: 700;
+        color: var(--c-7a5c49, #7a5c49); cursor: pointer;
+    }
+    .table-wrap { background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+    .table-scroll { overflow-x: auto; }
+    table.tbl { min-width: 1020px; }
+    .row-count { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; padding: 13px 18px; }
+    .empty-msg { padding: 30px; text-align: center; color: var(--ink-soft); font-size: 13.5px; display: none; }
+    .money { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    /* Colour on the tile's top border rather than the number: a 3px rule reads
+       on any background and needs no per-theme variant. */
+    .kpi.k-rep  { border-top-color: var(--brand-dark); }
+    .kpi.k-acc  { border-top-color: #b45309; }
+    .kpi.k-auto { border-top-color: #2e7d32; }
+    .kpi-note { font-size: 11.5px; color: var(--ink-soft); margin: -10px 0 20px; line-height: 1.6; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="client-head">
+    <h2>Chargeback Management</h2>
+    <p>Every dispute raised against {{ c.client }}, newest first.</p>
+    <span class="scope-note">{{ icon('file-text') }} {{ c.totals.cases }} cases &middot; {{ c.totals.outstanding }} awaiting a decision</span>
+</div>
+
+{# These used to be the pipeline's routing buckets (pending / represented /
+   accepted / auto), which contradicted the columns below them — a "23 Pending
+   Cases" tile over a Submission column with 50 Pending rows. Now they are the
+   same case facts the columns, the dashboard KPI strip and the manager
+   console all count, from the same c.totals source. #}
+<div class="kpi-strip">
+    <div class="kpi"><div class="v">{{ c.totals.outstanding }}</div><div class="l">Awaiting Decision</div></div>
+    <div class="kpi k-rep"><div class="v">{{ c.totals.submitted }}</div><div class="l">Sent to Network</div></div>
+    <div class="kpi k-acc"><div class="v">{{ c.totals.won }}</div><div class="l">Won</div></div>
+    <div class="kpi k-auto"><div class="v">{{ c.totals.lost }}</div><div class="l">Lost</div></div>
+</div>
+<div class="kpi-note">
+    <b>Awaiting decision</b> means the card network has not ruled yet. <b>Sent to network</b> counts
+    cases where a rebuttal was actually filed &mdash; by an analyst, or automatically the moment
+    its evidence packet was complete. A case we conceded was never sent and is neither &mdash;
+    it shows <b>Refunded</b> in its Outcome column. Won and Lost are the network's rulings across
+    your {{ c.totals.cases }} cases.
+</div>
+
+<div class="filter-bar">
+    <input type="text" id="f-search" placeholder="Search case ID or reason&hellip;" oninput="filterRows()">
+    <label for="f-network">Network</label>
+    <select id="f-network" onchange="filterRows()">
+        <option value="">All</option>
+        {% for n in c.filters.networks %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+    </select>
+    <label for="f-outcome">Outcome</label>
+    <select id="f-outcome" onchange="filterRows()">
+        <option value="">All</option>
+        {% for o in c.filters.outcomes %}<option value="{{ o }}">{{ o }}</option>{% endfor %}
+    </select>
+    <label for="f-submission">Submission</label>
+    <select id="f-submission" onchange="filterRows()">
+        <option value="">All</option>
+        {% for s in c.filters.submissions %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+    <button class="clear-btn" onclick="clearFilters()">Clear</button>
+</div>
+
+<div class="table-wrap">
+    <div class="table-scroll">
+        <table class="tbl">
+            <thead>
+                <tr>
+                    <th>Case ID</th><th>Raised</th><th>Network</th><th>Reason</th>
+                    <th>Amount</th><th>Submission</th><th>Outcome</th><th>Respond By</th>
+                </tr>
+            </thead>
+            <tbody id="cb-body">
+                {# No agent, no team lead, no internal handling label — who works
+                   the case is ours to manage, not the merchant's to see. #}
+                {% for r in c.rows %}
+                <tr data-network="{{ r.network }}" data-outcome="{{ r.outcome }}"
+                    data-submission="{{ r.submission_status }}"
+                    data-search="{{ (r.case_id ~ ' ' ~ r.reason_code ~ ' ' ~ r.reason_title ~ ' ' ~ r.scenario)|lower }}">
+                    <td><a class="cid" href="{{ url_for('client_case', case_id=r.case_id) }}">{{ r.case_id }}</a></td>
+                    <td>{{ r.dispute_date }}</td>
+                    <td>{{ r.network }}</td>
+                    <td>{{ r.reason_title or r.reason_code }}</td>
+                    <td class="money"><b>{{ r.currency }} {{ "%.2f"|format(r.amount) }}</b></td>
+                    <td>
+                        {% if r.submission_status == 'Submitted' %}<span class="pill ok">Submitted</span>
+                        {% else %}<span class="pill wait">{{ r.submission_status }}</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if r.outcome == 'Win' %}<span class="pill ok">Won</span>
+                        {% elif r.outcome == 'Lost' %}<span class="pill bad">Lost</span>
+                        {% else %}<span class="pill wait">{{ r.outcome }}</span>{% endif %}
+                    </td>
+                    <td>{{ r.due_date or '&mdash;'|safe }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="empty-msg" id="empty-msg">No cases match these filters.</div>
+    <div class="row-count" id="row-count">Showing {{ c.rows|length }} of {{ c.rows|length }} cases</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var FILTERS = ['network', 'outcome', 'submission'];
+
+function filterRows() {
+    var q = document.getElementById('f-search').value.trim().toLowerCase();
+    var rows = document.querySelectorAll('#cb-body tr');
+    var shown = 0;
+    rows.forEach(function (row) {
+        var ok = FILTERS.every(function (k) {
+            var want = document.getElementById('f-' + k).value;
+            return !want || row.dataset[k] === want;
+        });
+        if (ok && q) { ok = row.dataset.search.indexOf(q) !== -1; }
+        row.classList.toggle('hidden', !ok);
+        if (ok) { shown++; }
+    });
+    document.getElementById('row-count').textContent =
+        'Showing ' + shown + ' of ' + rows.length + ' cases';
+    document.getElementById('empty-msg').style.display = shown === 0 ? 'block' : 'none';
+}
+
+function clearFilters() {
+    FILTERS.forEach(function (k) { document.getElementById('f-' + k).value = ''; });
+    document.getElementById('f-search').value = '';
+    filterRows();
+}
+</script>
+{% endblock %}

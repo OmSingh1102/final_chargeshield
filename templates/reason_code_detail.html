@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Reason Code {{ code_id }} - {{ code.title }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ home_url }}">&#8962; Home</a> &gt;
+    <a href="{{ url_for('reason_codes') }}">Reason Codes</a> &gt;
+    {{ code_id }}
+</div>
+
+<div class="rc-header">
+    <div class="rc-code">Reason Code {{ code_id }}</div>
+    <div class="rc-title">{{ code.title }}</div>
+    <div class="network-badges" style="margin-top:12px;">
+        {% for network, ncode in code.network_codes.items() %}
+        {% if ncode %}
+        <span class="network-badge {{ network|lower }}" style="font-size:12px; padding:4px 12px;">{{ network }}: {{ ncode }}</span>
+        {% endif %}
+        {% endfor %}
+    </div>
+    <div class="scenario-tags">
+        {% for s in code.scenarios %}
+        <span class="scenario-tag">{{ s }}</span>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Definition -->
+<div class="packet-section">
+    <h3><span class="icon">&#128214;</span> Definition</h3>
+    <p style="color:#444; font-size:14px; line-height:1.7;">{{ code.definition }}</p>
+</div>
+
+<!-- Merchant Challenge -->
+<div class="packet-section">
+    <h3><span class="icon">&#9878;</span> Merchant Challenge</h3>
+    <p style="color:#444; font-size:14px; line-height:1.7;">{{ code.merchant_challenge }}</p>
+</div>
+
+<!-- Defense Goals -->
+<div class="packet-section">
+    <h3><span class="icon">&#127919;</span> Defense Goals</h3>
+    {% for goal in code.defense_goals %}
+    <div class="defense-goal">
+        <span class="goal-num">{{ loop.index }}</span>
+        <span>{{ goal }}</span>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Platform-specific supporting documents -->
+{% if code.supporting_docs_platform %}
+<div class="packet-section">
+    <h3>
+        <span class="icon">&#128196;</span>
+        Supporting Documents (Marketplace / Platform)
+        <span class="platform-badge" style="margin-left:auto;">Platform-specific</span>
+    </h3>
+    {% for cat in code.supporting_docs_platform %}
+    <div class="doc-category">
+        <h4>{{ cat.category }}</h4>
+        <ul class="doc-checklist">
+            {% for item in cat.evidences %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- General Supporting Documents -->
+<div class="packet-section">
+    <h3><span class="icon">&#128203;</span> Supporting Documents (General)</h3>
+    {% for cat in code.supporting_docs_general %}
+    <div class="doc-category">
+        <h4>{{ cat.category }}</h4>
+        <ul class="doc-checklist">
+            {% for item in cat.evidences %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Portals to Refer -->
+<div class="packet-section">
+    <h3><span class="icon">&#127760;</span> Portals to Refer</h3>
+    <div class="portal-list">
+        {% for portal in code.portals %}
+        <span class="portal-tag">&#128279; {{ portal }}</span>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

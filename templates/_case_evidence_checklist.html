@@ -1,0 +1,106 @@
+{#- This case's row of the evidence-requirements matrix — the ontology applied
+    to one dispute rather than recited in the abstract. Needs `checklist` (from
+    _case_evidence_checklist), `connections` (from _case_connections) and `dbs`
+    (DATABASES); deliberately needs no `ml`, so the review packet could include
+    it later without its route growing a classifier call.
+
+    Colour discipline matches the Evidence Requirements page: rose = primary,
+    slate = secondary, emerald = system-fetched, amber = manual. The connection
+    marks state exactly what the credential store holds — set or not set — and
+    never claim a fetch happened. -#}
+{% if checklist %}
+{% if checklist.missing %}
+<div class="panel em-case">
+    <div class="panel-head">
+        <div>
+            <h3>Evidence Requirements</h3>
+            <div class="sub">
+                {% if checklist.family %}
+                No evidence requirements defined for
+                <b>{{ checklist.reason.title or checklist.family }}</b>
+                (family {{ checklist.family }}) &mdash; the management matrix
+                covers 7 dispute types, and this is not one of them.
+                {% else %}
+                This case's reason code did not resolve to a dispute family, so
+                no evidence requirements can be looked up for it.
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+{%- set sec = checklist.section %}
+<div class="panel em-case">
+    <div class="panel-head em-ph">
+        <div>
+            <h3>Evidence Requirements &mdash; {{ sec.labels|join(' / ') }}</h3>
+            <div class="sub">
+                Dictated by dispute type (family {{ checklist.family }}) &middot;
+                {{ checklist['items']|length }} items &middot;
+                {{ checklist['items']|selectattr('primary')|list|length }} primary
+                {%- if checklist.variant %} &middot;
+                Scenario: <b>{{ checklist.variant }}</b>{% if checklist.variant_note %}, {{ checklist.variant_note }}{% endif %}
+                {%- endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="em-wrap">
+        <table class="em-table">
+            <thead>
+                <tr>
+                    <th>Required information</th>
+                    <th>Tier</th>
+                    <th>Fetched</th>
+                    <th>Sources</th>
+                    {% if not checklist.variant and sec.variants %}<th>Applies to</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for it in checklist['items'] %}
+                <tr>
+                    <td class="n">{{ it.name }}</td>
+                    <td>
+                        {% if it.primary %}<span class="badge rose">Primary</span>
+                        {% else %}<span class="badge slate">Secondary</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if it.method == 'system' %}
+                        <span class="badge emerald">System</span>
+                        {%- set any_conn = namespace(v=false) %}
+                        {%- for s in it.sources %}{% if connections.get(s, {}).get('connected') %}{% set any_conn.v = true %}{% endif %}{% endfor %}
+                        {%- if it.sources and not any_conn.v %}
+                        <div class="em-note">manual until a source is connected</div>
+                        {%- endif %}
+                        {% elif it.method == 'manual' %}<span class="badge amber">Manual</span>
+                        {% else %}<span class="em-none">&mdash;</span>{% endif %}
+                    </td>
+                    <td>
+                        {% for s in it.sources %}
+                        {%- set conn = connections.get(s, {}) %}
+                        <span class="em-src">
+                            <span class="em-db" title="{{ dbs[s].name }} &mdash; {{ dbs[s].focus }}">DB {{ s }}</span>
+                            {%- if conn.connected %}
+                            <span class="em-conn ok" title="{{ conn.panel }} credentials on file{% if conn.system %} ({{ conn.system }}){% endif %}">&#9679;{% if conn.system %} {{ conn.system }}{% endif %}</span>
+                            {%- elif conn %}
+                            <span class="em-conn off" title="No {{ conn.panel|lower }} credentials on file for this merchant">&#9675; not connected</span>
+                            {%- endif %}
+                        </span>
+                        {% endfor %}
+                        {% if not it.sources %}<span class="em-none">&mdash;</span>{% endif %}
+                    </td>
+                    {% if not checklist.variant and sec.variants %}
+                    <td class="em-applies">
+                        {%- set applies = it.variants_for or sec.variants %}
+                        {% if applies|length == sec.variants|length %}All scenarios
+                        {% else %}{{ applies|join(' · ') }}{% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endif %}

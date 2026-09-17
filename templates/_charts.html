@@ -1,0 +1,364 @@
+{#- Chart building blocks, shared by any page that renders a ManagerCharts dict.
+
+    Manager Hub keeps its own copy: it carries three further charts, a different
+    layout and a filter toolbar wired to its case table, and re-cutting a working
+    page to fit these macros would risk more than it saves. These exist so the
+    client portal does not become a third hand-written copy.
+
+    Every macro takes the whole `ch` dict — the output of ManagerCharts.compute
+    — so a caller never has to know which sub-key feeds which chart.
+
+    Usage:
+        {% import "_charts.html" as charts %}
+        {{ charts.chart_css() }}
+        {{ charts.network_pie(c.charts) }}
+        {{ charts.trend_js(c.charts) }}      {# in the extra_js block #}
+-#}
+{#- Imported here rather than taken from the render context: a macro library is
+    pulled in with {% import %}, which by design does not receive the caller's
+    context, so the `icon` that _inject_nav gives every page is undefined
+    inside these macros. A library imports what it needs. -#}
+{% from "_icon.html" import icon %}
+
+{%- macro chart_css() -%}
+<style>
+    /* Columns stretch rather than starting independently, so a row ends on one
+       flat edge instead of leaving the shorter card's slack as a hole below it.
+       Stretch is only the finish: two cards of wildly different height still
+       read as a gap, which is why the tall processor breakdown is given a row
+       of its own rather than being paired with a short card. */
+    .chart-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 22px; align-items: stretch; }
+    @media (max-width: 1100px) { .chart-grid-2 { grid-template-columns: 1fr; } }
+    /* A card that spans the row on its own. Same bottom margin the grid gives
+       its rows, so the rhythm down the page does not change. */
+    .chart-full { margin-bottom: 22px; }
+    .chart-card {
+        background: var(--surface, #fff); border-radius: 16px; padding: 22px;
+        border: 1px solid var(--line, #f2e4da); box-shadow: 0 2px 14px rgba(146,64,14,.07);
+    }
+    /* A stretched card has to place its own children, or the slack it was given
+       lands as one dead band under the last element instead of being shared
+       out. Scoped to the grid children: a full-width card sizes to its content
+       and needs none of this. */
+    .chart-grid-2 > .chart-card { display: flex; flex-direction: column; }
+    .chart-grid-2 > .chart-card > .chart-note:last-child { margin-top: auto; padding-top: 14px; }
+    /* These heights are the chart's own scale. As flex items they must not be
+       squeezed to make room for anything else in the card. */
+    .chart-grid-2 > .chart-card > .stack-chart,
+    .chart-grid-2 > .chart-card > .pie-wrap { flex-shrink: 0; }
+    .chart-card h3 { font-size: 15px; font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; color: var(--ink); }
+    .chart-sub { font-size: 12px; color: var(--ink-soft, #8a7365); margin-bottom: 18px; }
+    .chart-note { font-size: 11px; color: var(--c-a89383, #a89383); margin-top: 12px; line-height: 1.55; }
+
+    /* Pie + legend */
+    .pie-wrap { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+    .pie { width: 168px; height: 168px; border-radius: 50%; flex-shrink: 0; position: relative; }
+    .pie.hole::after { content: ''; position: absolute; inset: 27%; background: var(--surface, #fff); border-radius: 50%; }
+    .pie-hole-txt { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1; }
+    .pie-hole-txt .ph-v { font-size: 23px; font-weight: 800; line-height: 1; color: var(--ink); }
+    .pie-hole-txt .ph-l { font-size: 10px; color: var(--ink-soft, #8a7365); text-transform: uppercase; letter-spacing: .4px; }
+    .pie-legend { display: flex; flex-direction: column; gap: 9px; min-width: 160px; }
+    .pl-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); }
+    .pl-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+    .pl-name { flex: 1; }
+    .pl-val { font-weight: 700; }
+
+    /* Stacked columns */
+    .stack-chart { display: flex; align-items: flex-end; gap: 16px; height: 230px; }
+    .stack-col { flex: 1; display: flex; flex-direction: column; height: 100%; min-width: 0; }
+    .stack-total { font-size: 12px; font-weight: 700; text-align: center; margin-bottom: 5px; color: var(--ink-soft-2, #7a6558); }
+    .stack-bar { flex: 1; display: flex; flex-direction: column; border-radius: 8px; overflow: hidden; background: var(--surface-2, #f7efe9); }
+    .stack-seg { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--on-accent, #fff); overflow: hidden; min-height: 0; }
+    .stack-label { font-size: 11.5px; text-align: center; margin-top: 9px; font-weight: 600; color: var(--ink-soft-2, #7a6558); }
+    .stack-empty { margin-top: auto; height: 4px; border-radius: 3px; background: var(--c-f0e2d7, #f0e2d7); text-indent: -9999px; overflow: hidden; }
+
+    /* Per-currency amount lists — never one summed figure */
+    .cur-list { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+    .cur-list span { font-size: 12px; white-space: nowrap; }
+    .cur-list .cur-code { color: var(--c-a89383, #a89383); font-size: 10.5px; font-weight: 700; margin-right: 4px; }
+
+    /* Volume trend */
+    .trend-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+    .trend-toolbar .tt-lab { font-size: 11.5px; font-weight: 700; color: var(--ink-soft, #8a7365); text-transform: uppercase; letter-spacing: .4px; }
+    .seg-btn {
+        padding: 6px 15px; border: 1px solid var(--line-strong, #fbd9c4); background: var(--surface, #fff);
+        border-radius: 8px; font-family: inherit; font-size: 12.5px; font-weight: 600;
+        color: var(--c-7a5c49, #7a5c49); cursor: pointer;
+    }
+    .seg-btn.on { background: var(--brand, #f4611a); border-color: var(--brand, #f4611a); color: var(--on-accent, #fff); }
+    .trend-toolbar select {
+        padding: 6px 12px; border: 1px solid var(--line-strong, #fbd9c4); border-radius: 8px;
+        background: var(--surface, #fff); font-family: inherit; font-size: 13px; color: var(--ink);
+    }
+    .trend-scroll { overflow-x: auto; padding-bottom: 4px; }
+    .tr-chart { display: flex; align-items: flex-end; gap: 8px; height: 250px; min-width: 100%; }
+    .tr-col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-width: 34px; flex: 1; height: 100%; }
+    .tr-val { font-size: 10px; font-weight: 700; color: var(--ink-soft-2, #7a6558); margin-bottom: 3px; }
+    .tr-stack { width: 100%; max-width: 42px; display: flex; flex-direction: column-reverse; border-radius: 5px 5px 0 0; overflow: hidden; }
+    .tr-seg { width: 100%; }
+    .tr-label { font-size: 10px; color: var(--ink-soft, #8a7365); margin-top: 10px; white-space: nowrap; transform: rotate(-40deg); transform-origin: top center; height: 34px; }
+    .tr-empty { padding: 40px; text-align: center; color: var(--c-a89383, #a89383); font-size: 13px; }
+
+    .rc-tbl { width: 100%; border-collapse: collapse; }
+    .rc-tbl thead th {
+        background: var(--c-fdf9f6, #fdf9f6); padding: 9px 12px; font-size: 10.5px; font-weight: 700;
+        text-transform: uppercase; color: var(--c-888888, #888); text-align: left;
+        border-bottom: 2px solid var(--c-e8e8e8, #e8e8e8);
+    }
+    .rc-tbl tbody td { padding: 9px 12px; font-size: 12.5px; color: var(--ink); border-bottom: 1px solid var(--c-f0f0f0, #f0f0f0); }
+    .rc-tbl tbody tr:hover { background: var(--brand-wash, #fff7f2); }
+</style>
+{%- endmacro -%}
+
+
+{#- Amounts are per-currency dicts, never one summed figure — the book runs in
+    several currencies and adding them would produce a meaningless number. -#}
+{%- macro money(amounts) -%}
+<div class="cur-list">
+    {%- for cur, val in amounts.items() %}
+    <span><span class="cur-code">{{ cur }}</span>{{ "{:,.2f}".format(val) }}</span>
+    {%- else %}
+    <span style="color: var(--c-a89383, #a89383);">&mdash;</span>
+    {%- endfor %}
+</div>
+{%- endmacro -%}
+
+
+{#- 1. CB on Card Type -#}
+{%- macro network_pie(ch, title='CB on Card Type', sub='') -%}
+<div class="chart-card">
+    <h3>{{ icon('credit-card') }} {{ title }}</h3>
+    <div class="chart-sub">{{ sub or 'Share of your ' ~ ch.total ~ ' chargebacks, by card network' }}</div>
+    <div class="pie-wrap">
+        <div class="pie hole" style="background: conic-gradient({% for r in ch.breakdown.network_rows %}{{ r.color }} {{ r.start_deg }}deg {{ r.end_deg }}deg{{ ', ' if not loop.last }}{% endfor %});">
+            <div class="pie-hole-txt">
+                <span class="ph-v">{{ ch.total }}</span>
+                <span class="ph-l">Cases</span>
+            </div>
+        </div>
+        <div class="pie-legend">
+            {% for r in ch.breakdown.network_rows %}
+            <div class="pl-item">
+                <span class="pl-dot" style="background:{{ r.color }};"></span>
+                <span class="pl-name">{{ r.name }}</span>
+                <span class="pl-val">{{ r.pct }}%</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <table class="rc-tbl" style="margin-top:18px;">
+        <thead>
+            <tr><th>Labels</th>{% for r in ch.breakdown.network_rows %}<th style="text-align:right;">{{ r.name }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+            <tr><td style="font-weight:700;">CB Count</td>{% for r in ch.breakdown.network_rows %}<td style="text-align:right;">{{ r.count }}</td>{% endfor %}</tr>
+            <tr><td style="font-weight:700;">CB Amount</td>{% for r in ch.breakdown.network_rows %}<td style="text-align:right;">{{ money(r.amounts) }}</td>{% endfor %}</tr>
+        </tbody>
+    </table>
+    <div class="chart-note">Amounts are listed per currency &mdash; your book runs in {{ ch.currencies|join(', ') }}, so they are never added together.</div>
+</div>
+{%- endmacro -%}
+
+
+{#- 2. Processor vs Card Type -#}
+{%- macro processor_stack(ch, title='Processor vs Card Type') -%}
+<div class="chart-card">
+    <h3>&#127974; {{ title }}</h3>
+    <div class="chart-sub">Card network mix within each payment processor</div>
+    <div class="stack-chart">
+        {% for p in ch.breakdown.processor_rows %}
+        <div class="stack-col">
+            <div class="stack-total">{{ p.count }}</div>
+            <div class="stack-bar">
+                {% for m in p.mix %}
+                <div class="stack-seg" style="height:{{ m.pct }}%; background:{{ m.color }};" title="{{ p.name }} &middot; {{ m.name }}: {{ m.count }}">{% if m.pct >= 12 %}{{ m.pct|round|int }}%{% endif %}</div>
+                {% endfor %}
+            </div>
+            <div class="stack-label">{{ p.name }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {{ legend(ch) }}
+    <table class="rc-tbl" style="margin-top:18px;">
+        <thead><tr><th>Processor</th><th style="text-align:right;">CB Count</th><th style="text-align:right;">Share</th><th style="text-align:right;">CB Amount</th></tr></thead>
+        <tbody>
+            {% for p in ch.breakdown.processor_rows %}
+            <tr>
+                <td style="font-weight:600;">{{ p.name }}</td>
+                <td style="text-align:right;">{{ p.count }}</td>
+                <td style="text-align:right;">{{ p.pct }}%</td>
+                <td style="text-align:right;">{{ money(p.amounts) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{%- endmacro -%}
+
+
+{#- 3. CB Status vs Card Type -#}
+{%- macro status_stack(ch, title='CB Status vs Card Type') -%}
+<div class="chart-card">
+    <h3>&#127942; {{ title }}</h3>
+    <div class="chart-sub">Where your cases stand, each status split by the network it came in on</div>
+    <div class="stack-chart">
+        {% for s in ch.performance.status_stacks %}
+        <div class="stack-col">
+            <div class="stack-total">{{ s.total }}</div>
+            {% if s.total %}
+            <div class="stack-bar">
+                {% for seg in s.segments %}
+                <div class="stack-seg" style="height:{{ seg.pct }}%; background:{{ seg.color }};" title="{{ s.name }} &middot; {{ seg.name }}: {{ seg.count }}">{% if seg.pct >= 14 %}{{ seg.pct|round|int }}%{% endif %}</div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="stack-empty">none</div>
+            {% endif %}
+            <div class="stack-label">{{ s.name }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {{ legend(ch) }}
+    <table class="rc-tbl" style="margin-top:18px;">
+        <thead>
+            <tr><th>Labels</th>{% for s in ch.performance.status_order %}<th style="text-align:right;">{{ s }}</th>{% endfor %}<th style="text-align:right;">Total</th></tr>
+        </thead>
+        <tbody>
+            {% for row in ch.performance.status_table %}
+            <tr>
+                <td style="font-weight:600;"><span class="pl-dot" style="display:inline-block; background:{{ row.color }}; margin-right:7px;"></span>{{ row.name }}</td>
+                {% for cell in row.cells %}<td style="text-align:right;">{{ cell }}</td>{% endfor %}
+                <td style="text-align:right; font-weight:700;">{{ row.total }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="chart-note">Decision pending means the card network has not ruled yet. Not fought means the
+        chargeback was accepted rather than contested.</div>
+</div>
+{%- endmacro -%}
+
+
+{#- Shared network key, used under both stacked charts. -#}
+{%- macro legend(ch) -%}
+<div class="pie-legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-top:16px;">
+    {% for n in ch.networks %}
+    <div class="pl-item" style="gap:6px; flex:0 0 auto;">
+        <span class="pl-dot" style="background:{{ ch.network_colors[n] }};"></span>
+        <span style="font-size:12px;">{{ n }}</span>
+    </div>
+    {% endfor %}
+</div>
+{%- endmacro -%}
+
+
+{#- 4. Daily CB Volume Trend. Series for all three granularities are precomputed
+    server-side; trend_js() redraws client-side so the filters need no round
+    trip. Pair this macro with trend_js() in the page's extra_js block. -#}
+{%- macro volume_trend(ch, title='Daily CB Volume Trend') -%}
+<div class="chart-card" style="margin-bottom:22px;">
+    <h3>&#128200; {{ title }}</h3>
+    <div class="chart-sub">
+        Chargebacks received over time, stacked by card network.
+        {% if ch.trend.span.days %}Covering {{ ch.trend.span.start }} to {{ ch.trend.span.end }}.{% endif %}
+    </div>
+
+    <div class="trend-toolbar">
+        <span class="tt-lab">Group by</span>
+        <button type="button" class="seg-btn on" data-gran="daily" onclick="setTrendGran('daily', this)">Daily</button>
+        <button type="button" class="seg-btn" data-gran="weekly" onclick="setTrendGran('weekly', this)">Weekly</button>
+        <button type="button" class="seg-btn" data-gran="monthly" onclick="setTrendGran('monthly', this)">Monthly</button>
+
+        <span class="tt-lab" style="margin-left:12px;">Timeframe</span>
+        <select id="trend-window" onchange="renderTrend()">
+            <option value="all">All time</option>
+            <option value="7">Last 7 periods</option>
+            <option value="14">Last 14 periods</option>
+            <option value="30">Last 30 periods</option>
+        </select>
+
+        <span class="tt-lab" style="margin-left:12px;">Network</span>
+        <select id="trend-network" onchange="renderTrend()">
+            <option value="All">All networks</option>
+            {% for n in ch.networks %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+        </select>
+
+        <span id="trend-summary" style="font-size:12px; color: var(--ink-soft, #8a7365); margin-left:auto;"></span>
+    </div>
+
+    <div class="trend-scroll"><div class="tr-chart" id="tr-chart"></div></div>
+    {{ legend(ch) }}
+    {% if ch.trend.undated %}
+    <div class="chart-note">{{ ch.trend.undated }} case{{ 's' if ch.trend.undated != 1 }} had no usable date and {{ 'is' if ch.trend.undated == 1 else 'are' }} excluded from this chart.</div>
+    {% endif %}
+</div>
+{%- endmacro -%}
+
+
+{%- macro trend_js(ch) -%}
+<script>
+const TREND = {{ ch.trend.series | tojson }};
+const NET_COLORS = {{ ch.network_colors | tojson }};
+const NETWORKS = {{ ch.networks | tojson }};
+let trendGran = 'daily';
+
+function setTrendGran(gran, btn) {
+    trendGran = gran;
+    document.querySelectorAll('.seg-btn').forEach(function (b) { b.classList.remove('on'); });
+    btn.classList.add('on');
+    renderTrend();
+}
+
+function renderTrend() {
+    const host = document.getElementById('tr-chart');
+    if (!host) return;
+
+    const win = document.getElementById('trend-window').value;
+    const net = document.getElementById('trend-network').value;
+
+    let points = TREND[trendGran] || [];
+    if (win !== 'all') points = points.slice(-parseInt(win, 10));
+
+    const shown = net === 'All' ? NETWORKS : [net];
+    // Recompute each point's total for the selected network(s).
+    const rows = points.map(function (p) {
+        return {
+            label: p.label,
+            total: shown.reduce(function (sum, n) { return sum + (p.by_network[n] || 0); }, 0),
+            by: p.by_network,
+        };
+    });
+
+    const peak = Math.max(1, ...rows.map(function (r) { return r.total; }));
+    const grand = rows.reduce(function (s, r) { return s + r.total; }, 0);
+
+    document.getElementById('trend-summary').textContent =
+        rows.length ? grand + ' chargebacks across ' + rows.length + ' period' + (rows.length === 1 ? '' : 's') + ' · peak ' + peak
+                    : '';
+
+    if (!rows.length) {
+        host.innerHTML = '<div class="tr-empty">No chargebacks in this timeframe.</div>';
+        return;
+    }
+
+    host.innerHTML = rows.map(function (r) {
+        // Bar height is a share of the plot area, leaving room for the value label.
+        const h = r.total ? Math.max(2, r.total / peak * 82) : 0;
+        const segs = shown.map(function (n) {
+            const v = r.by[n] || 0;
+            if (!v) return '';
+            const segH = v / r.total * 100;
+            return '<div class="tr-seg" style="height:' + segH + '%; background:' + (NET_COLORS[n] || '#c9a898') +
+                   ';" title="' + n + ': ' + v + '"></div>';
+        }).join('');
+        return '<div class="tr-col">' +
+                 '<div class="tr-val">' + (r.total || '') + '</div>' +
+                 '<div class="tr-stack" style="height:' + h + '%;">' + segs + '</div>' +
+                 '<div class="tr-label">' + r.label + '</div>' +
+               '</div>';
+    }).join('');
+}
+
+document.addEventListener('DOMContentLoaded', renderTrend);
+</script>
+{%- endmacro -%}

@@ -1,0 +1,98 @@
+{% extends "client_base.html" %}
+{% block title %}Repository - {{ c.client }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .rep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .rep-card {
+        background: var(--surface, #fff); border: 1px solid var(--line-strong); border-radius: 14px;
+        padding: 16px 18px; box-shadow: var(--shadow);
+    }
+    .rep-card .t { font-size: 14px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+    .rep-card .s { font-size: 12px; color: var(--ink-soft); margin-top: 5px; line-height: 1.5; }
+    .rep-card .m { font-size: 11px; color: var(--c-a89383, #a89383); margin-top: 10px; }
+    .rep-card ul { margin: 10px 0 0; padding-left: 18px; }
+    .rep-card li { font-size: 12px; color: var(--ink); line-height: 1.65; }
+    .cols { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .cols span {
+        font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+        background: var(--brand-wash, #fff7f2); border: 1px solid var(--line-strong);
+        color: var(--brand-dark);
+    }
+    details.letter { margin-top: 10px; }
+    details.letter summary {
+        cursor: pointer; font-size: 12px; font-weight: 700; color: var(--brand-dark);
+        list-style: none; user-select: none;
+    }
+    details.letter summary::-webkit-details-marker { display: none; }
+    details.letter summary::before { content: '\25B8  '; }
+    details.letter[open] summary::before { content: '\25BE  '; }
+    details.letter p { font-size: 12px; color: var(--ink); line-height: 1.65; margin: 10px 0 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="client-head">
+    <h2>Repository</h2>
+    <p>The letters and evidence documents we use to defend your chargebacks.</p>
+    <span class="scope-note">&#128065; Read-only &mdash; your account manager maintains these</span>
+</div>
+
+<div class="panel">
+    <div class="panel-head">
+        <div>
+            <h3>Representment Letters</h3>
+            <div class="sub">{{ lib.cover_letters|length }} templates, one per reason category. The
+                wording that goes to the card network on your behalf.</div>
+        </div>
+    </div>
+    <div class="rep-grid">
+        {% for cl in lib.cover_letters %}
+        <div class="rep-card">
+            <div class="t">{{ cl.label }}</div>
+            <div class="s">{{ cl.subheading }}</div>
+            <details class="letter">
+                <summary>Read the wording</summary>
+                {% if cl.intro %}<p>{{ cl.intro }}</p>{% endif %}
+                {% if cl.primary_text %}<p><b>{{ cl.primary_label }}</b> &mdash; {{ cl.primary_text }}</p>{% endif %}
+                {% if cl.secondary_text %}<p><b>{{ cl.secondary_label }}</b> &mdash; {{ cl.secondary_text }}</p>{% endif %}
+                {% if cl.points %}
+                <ul>{% for p in cl.points %}<li>{{ p }}</li>{% endfor %}</ul>
+                {% endif %}
+                {% if cl.conclusion %}<p>{{ cl.conclusion }}</p>{% endif %}
+            </details>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-head">
+        <div>
+            <h3>Evidence Documents</h3>
+            <div class="sub">{{ lib.documents|length }} documents built per case from your own records
+                &mdash; these are what the letter attaches.</div>
+        </div>
+    </div>
+    <div class="rep-grid">
+        {% for d in lib.documents %}
+        <div class="rep-card">
+            <div class="t"><span>{{ d.icon }}</span>{{ d.title }}</div>
+            <div class="s">{{ d.blurb }}</div>
+            {% if d.columns %}
+            <div class="cols">{% for col in d.columns %}<span>{{ col }}</span>{% endfor %}</div>
+            {% endif %}
+            {% if d.policy %}<div class="m">Written per case from your policy terms.</div>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="stub-note" style="max-width:760px; margin-top:0; padding:14px 18px;
+     background: var(--brand-wash, #fff7f2); border:1px dashed var(--line-strong);
+     border-radius:12px; font-size:12.5px; color: var(--ink-soft-2, #7a6558); line-height:1.6;">
+    <b>How these are used.</b> When a chargeback comes in, we pick the letter matching its reason code
+    and attach the evidence documents your account has data for. On the
+    <b>{{ c.tier_label }}</b> tier, {{ c.tier_blurb|lower }}
+</div>
+{% endblock %}

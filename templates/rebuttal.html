@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ doc.document_title }}</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: var(--c-eef1f5, #eef1f5);
+            color: var(--c-232736, #232736);
+            font-family: "Segoe UI", Arial, sans-serif;
+            line-height: 1.5;
+        }
+
+        .toolbar {
+            background: var(--c-2d323a, #2d323a);
+            padding: 10px 26px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+        .toolbar a,
+        .toolbar button {
+            border: none;
+            border-radius: 6px;
+            padding: 8px 14px;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .toolbar .back-btn { background: var(--c-4b5563, #4b5563); color: var(--on-accent, #fff); }
+        .toolbar .print-btn { background: var(--c-1454ae, #1454ae); color: var(--on-accent, #fff); }
+        .toolbar .title { margin-left: auto; color: var(--c-d8dce2, #d8dce2); font-size: 13px; }
+
+        .doc-shell {
+            max-width: 980px;
+            margin: 22px auto 32px;
+        }
+
+        .page {
+            background: var(--surface, #fff);
+            margin-bottom: 16px;
+            border: 1px solid var(--c-d6dde7, #d6dde7);
+            box-shadow: 0 2px 12px rgba(17, 45, 82, 0.07);
+            min-height: 1120px;
+            position: relative;
+            padding: 28px 40px 88px;
+            page-break-after: always;
+            overflow: hidden;
+        }
+        .page:last-child { page-break-after: auto; }
+
+        .watermark {
+            position: absolute;
+            left: 50%;
+            top: 55%;
+            transform: translate(-50%, -50%) rotate(-33deg);
+            font-size: 82px;
+            font-weight: 800;
+            color: rgba(60, 74, 96, 0.08);
+            letter-spacing: 8px;
+            text-transform: uppercase;
+            pointer-events: none;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .page-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            font-size: 13px;
+            color: var(--c-1f2a3b, #1f2a3b);
+            margin-bottom: 26px;
+        }
+        .page-meta .left { text-align: left; }
+        .page-meta .center { text-align: center; }
+        .page-meta .right { text-align: right; }
+
+        .hero-title {
+            font-size: 44px;
+            font-weight: 900;
+            letter-spacing: 0.7px;
+            color: var(--c-580808, #580808);
+            margin: 0 0 6px 0;
+            line-height: 1.08;
+            text-transform: uppercase;
+        }
+        .hero-subtitle {
+            font-size: 24px;
+            color: var(--c-2f3243, #2f3243);
+            font-style: italic;
+            margin-bottom: 28px;
+        }
+
+        .summary-table,
+        .grid-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .summary-table td {
+            border: 1px solid var(--c-d8c4c4, #d8c4c4);
+            padding: 10px 12px;
+            vertical-align: middle;
+            font-size: 17px;
+        }
+        .summary-table .label {
+            font-weight: 800;
+            color: var(--c-5a120f, #5a120f);
+            width: 23%;
+        }
+        .summary-table .value {
+            color: var(--c-47505c, #47505c);
+            width: 27%;
+            font-family: Consolas, "Courier New", monospace;
+        }
+        .summary-table .highlight {
+            color: var(--c-d21818, #d21818);
+            font-weight: 800;
+        }
+
+        .section-title {
+            margin-top: 30px;
+            margin-bottom: 12px;
+            font-size: 30px;
+            color: var(--c-25293b, #25293b);
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .section-subtitle {
+            font-size: 21px;
+            color: var(--c-2f3243, #2f3243);
+            font-style: italic;
+            margin-bottom: 18px;
+        }
+
+        p {
+            font-size: 17px;
+            color: var(--c-394252, #394252);
+            margin: 0 0 14px;
+        }
+        .bold-line {
+            font-weight: 800;
+            color: var(--c-222b3d, #222b3d);
+        }
+
+        .critical-box {
+            border-left: 8px solid var(--c-223b94, #223b94);
+            padding: 16px 18px 16px 24px;
+            margin-top: 22px;
+            background: var(--c-f7f9ff, #f7f9ff);
+        }
+        .critical-box h3 {
+            margin: 0 0 10px;
+            font-size: 21px;
+            color: var(--c-1f2f7f, #1f2f7f);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .signoff {
+            margin-top: 34px;
+        }
+        .signoff .role {
+            font-weight: 800;
+            color: var(--c-1f2638, #1f2638);
+            margin-top: 8px;
+        }
+
+        .footer {
+            position: absolute;
+            bottom: 30px;
+            left: 40px;
+            right: 40px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--c-d31f1f, #d31f1f);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .evidence-block {
+            margin-top: 20px;
+        }
+        .evidence-block h3 {
+            margin: 20px 0 10px;
+            font-size: 29px;
+            color: var(--c-1f2436, #1f2436);
+            font-weight: 900;
+            text-transform: uppercase;
+            line-height: 1.2;
+        }
+
+        .grid-table th,
+        .grid-table td {
+            border-bottom: 1px solid var(--c-e5e9f1, #e5e9f1);
+            padding: 16px 12px;
+            text-align: left;
+            vertical-align: top;
+            font-size: 17px;
+        }
+        .grid-table th {
+            color: var(--c-b0b4bc, #b0b4bc);
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+            border-bottom: 1px solid var(--c-dfe5ef, #dfe5ef);
+        }
+        .grid-table .exhibit {
+            width: 18%;
+        }
+        .grid-table .evidence-type {
+            width: 30%;
+            font-weight: 800;
+            color: var(--c-20293c, #20293c);
+        }
+        .grid-table .purpose {
+            color: var(--c-3f4654, #3f4654);
+        }
+        .tag {
+            display: inline-block;
+            border: 2px solid var(--c-ef2f2f, #ef2f2f);
+            color: var(--c-ef2f2f, #ef2f2f);
+            border-radius: 6px;
+            padding: 3px 9px;
+            font-weight: 800;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 15px;
+            background: var(--surface, #fff);
+        }
+
+        .mini-title {
+            margin: 24px 0 10px;
+            font-size: 24px;
+            font-weight: 900;
+            color: var(--c-1f2840, #1f2840);
+        }
+
+        .bullet-list {
+            margin: 0 0 16px 0;
+            padding-left: 28px;
+        }
+        .bullet-list li {
+            margin: 6px 0;
+            font-size: 17px;
+            color: var(--c-3a4353, #3a4353);
+        }
+
+        .link-title {
+            color: var(--c-1462c3, #1462c3);
+            text-decoration: underline;
+            font-size: 22px;
+            font-weight: 800;
+            margin: 20px 0 12px;
+        }
+
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+        }
+        .info-table td,
+        .info-table th {
+            border: 1px solid var(--c-d9dfe8, #d9dfe8);
+            padding: 10px 12px;
+            font-size: 16px;
+            color: var(--c-3a4252, #3a4252);
+            text-align: left;
+            vertical-align: top;
+        }
+        .info-table th {
+            background: var(--c-f8fafc, #f8fafc);
+            font-weight: 700;
+            color: var(--c-4c5667, #4c5667);
+        }
+
+        .two-col-head {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 8px;
+        }
+
+        .order-section h4 {
+            margin: 14px 0 6px;
+            font-size: 22px;
+            color: var(--c-252e41, #252e41);
+        }
+
+        .order-section p {
+            font-size: 16px;
+            margin-bottom: 7px;
+        }
+
+        .legal-callout {
+            margin-top: 28px;
+            border-left: 8px solid var(--c-d42424, #d42424);
+            padding-left: 18px;
+        }
+        .legal-callout h3 {
+            font-size: 24px;
+            color: var(--c-d42424, #d42424);
+            margin: 0 0 10px;
+            text-transform: uppercase;
+        }
+
+        .support-note {
+            margin-top: 22px;
+            text-align: center;
+            color: var(--c-414957, #414957);
+            font-size: 16px;
+        }
+
+        @media print {
+            body { background: var(--surface, #fff); }
+            .toolbar { display: none; }
+            .doc-shell { max-width: none; margin: 0; }
+            .page {
+                margin: 0;
+                border: none;
+                box-shadow: none;
+                min-height: auto;
+                width: 100%;
+                padding: 10mm 11mm 16mm;
+            }
+        }
+    </style>
+</head>
+<body>
+{# The toolbar is context-driven so one document serves both the staff page and
+   the copy a merchant reads. Passing nothing gives the staff toolbar; the
+   client portal passes its own back link and omits the staff packet link. #}
+{% set toolbar_links = links if links is defined
+       else [{'url': url_for('review_packet', case_id=case.case_id), 'label': 'Review Packet'}] %}
+<div class="toolbar">
+    {# .toolbar is display:none in this file's print rules, so Home stays off
+       the printed document without any rule of its own. #}
+    {% include "_home_button.html" %}
+    <a href="{{ back_url or url_for('case_detail', case_id=case.case_id) }}" class="back-btn">{{ back_label or 'Back to Case' }}</a>
+    {% for l in toolbar_links %}<a href="{{ l.url }}" class="back-btn">{{ l.label }}</a>{% endfor %}
+    {% if pdf_url %}<a href="{{ pdf_url }}" class="print-btn" download>&#11015; Download PDF</a>{% endif %}
+    <button class="print-btn" onclick="window.print()">Print / Export PDF</button>
+    <span class="title">{{ doc.document_title }}</span>
+</div>
+
+<div class="doc-shell">
+    <section class="page">
+        <div class="watermark">CONFIDENTIAL</div>
+        <div class="page-meta">
+            <div class="left">{{ doc.generated_at }}</div>
+            <div class="center">{{ doc.document_title }}</div>
+            <div class="right"></div>
+        </div>
+
+        <h1 class="hero-title">{{ doc.heading }}</h1>
+        <div class="hero-subtitle">{{ doc.subheading }}</div>
+
+        <table class="summary-table">
+            <tr>
+                <td class="label">Dispute / Case ID</td>
+                <td class="value">{{ doc.summary.dispute_case_id }}</td>
+                <td class="label">Original Charge Date</td>
+                <td class="value">{{ doc.summary.original_charge_date }}</td>
+            </tr>
+            <tr>
+                <td class="label">Disputed Amount</td>
+                <td class="value">${{ "%.2f"|format(doc.summary.disputed_amount) }}</td>
+                <td class="label">Reason Code</td>
+                <td class="value">{{ doc.summary.reason_code_line }}</td>
+            </tr>
+            <tr>
+                <td class="label">Cardholder Name</td>
+                <td class="value">{{ doc.summary.cardholder_name }}</td>
+                <td class="label">Card Brand / Last 4</td>
+                <td class="value">{{ doc.summary.card_brand_last4 }}</td>
+            </tr>
+            <tr>
+                <td class="label">Merchant Identity</td>
+                <td class="value">{{ doc.summary.merchant_identity }}</td>
+                <td class="label">Acquirer Reference Number (ARN) for Refund</td>
+                <td class="value highlight">{{ doc.summary.arn_number }}</td>
+            </tr>
+            <tr>
+                <td class="label">Refund Processing Date</td>
+                <td class="value">{{ doc.summary.refund_processing_date }}</td>
+                <td class="label">Refunded Amount</td>
+                <td class="value highlight">${{ "%.2f"|format(doc.summary.refunded_amount) }}</td>
+            </tr>
+        </table>
+
+        <h2 class="section-title">Executive Defense Statement</h2>
+
+        <p class="bold-line">{{ doc.cover_letter.salutation }}</p>
+        <p style="white-space:pre-line;">{{ doc.cover_letter.intro }}</p>
+
+        <p class="bold-line">{{ doc.cover_letter.primary_defense_label }}:</p>
+        <p style="padding-left:20px;">{{ doc.cover_letter.primary_defense_text }}</p>
+
+        <p class="bold-line">{{ doc.cover_letter.secondary_defense_label }}:</p>
+        <p style="padding-left:20px;">{{ doc.cover_letter.secondary_defense_text }}</p>
+
+        {% if doc.statement.arn_number and doc.statement.arn_number != 'N/A' %}
+        <div class="critical-box">
+            <h3>Critical Cross-Reference: The Refund ARN</h3>
+            <p>
+                The Acquirer Reference Number (ARN) {{ doc.statement.arn_number }} is the unique global tracking ID
+                generated by the payment network. The cardholder's bank can immediately track and verify the
+                arrival of these funds using this exact number.
+            </p>
+        </div>
+        {% endif %}
+
+        <div class="signoff">
+            <p>Respectfully submitted,</p>
+            <p class="role">Dispute Risk &amp; Compliance Manager</p>
+            <p>{{ case.merchant }}</p>
+            <p>{{ doc.support_email }}</p>
+        </div>
+
+        <div class="footer">
+            <span>Confidential Dispute Representment Evidence</span>
+            <span>Page 1 of {{ doc.page_total }}</span>
+        </div>
+    </section>
+
+    <section class="page">
+        <div class="watermark">CONFIDENTIAL</div>
+        <div class="page-meta">
+            <div class="left">{{ doc.generated_at }}</div>
+            <div class="center">{{ doc.document_title }}</div>
+            <div class="right"></div>
+        </div>
+
+        <h2 class="section-title">Detailed Evidence Directory</h2>
+        <div class="section-subtitle">Substantiating Proof Layout</div>
+
+        {# Primary Evidence Section #}
+        <div class="evidence-block">
+            <h3>Primary Evidence (Critical)</h3>
+            <p style="font-size:15px; color:#3f4654;">
+                These are the mandatory documents required to win this dispute. All primary evidence must be submitted.
+            </p>
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th class="exhibit">Exhibit</th>
+                        <th class="evidence-type">Evidence Type</th>
+                        <th>Details</th>
+                        <th style="width:12%;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in doc.dynamic_evidence %}
+                    {% if item.critical %}
+                    <tr>
+                        <td><span class="tag">{{ item.exhibit_id }}</span></td>
+                        <td class="evidence-type">{{ item.evidence_type }}</td>
+                        <td class="purpose">{{ item.details }}</td>
+                        <td style="font-weight:700; {% if item.status == 'Included' %}color:#2e7d32;{% else %}color:#c62828;{% endif %}">{{ item.status }}</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Secondary Evidence Section #}
+        <div class="evidence-block">
+            <h3>Secondary Evidence (Supporting)</h3>
+            <p style="font-size:15px; color:#3f4654;">
+                Supporting documents that strengthen the defense. While not individually mandatory, having more secondary evidence improves the winning ratio.
+            </p>
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th class="exhibit">Exhibit</th>
+                        <th class="evidence-type">Evidence Type</th>
+                        <th>Details</th>
+                        <th style="width:12%;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in doc.dynamic_evidence %}
+                    {% if not item.critical %}
+                    <tr>
+                        <td><span class="tag">{{ item.exhibit_id }}</span></td>
+                        <td class="evidence-type">{{ item.evidence_type }}</td>
+                        <td class="purpose">{{ item.details }}</td>
+                        <td style="font-weight:700; {% if item.status == 'Included' %}color:#2e7d32;{% else %}color:#c62828;{% endif %}">{{ item.status }}</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer">
+            <span>Confidential Dispute Representment Evidence</span>
+            <span>Page 2 of {{ doc.page_total }}</span>
+        </div>
+    </section>
+
+    <section class="page">
+        <div class="watermark">CONFIDENTIAL</div>
+        <div class="page-meta">
+            <div class="left">{{ doc.generated_at }}</div>
+            <div class="center">{{ doc.document_title }}</div>
+            <div class="right"></div>
+        </div>
+
+        <h3 class="mini-title">Chargeback Rebuttal Comments</h3>
+        <p>
+            This is an invalid dispute. With the attached evidence, we, as the merchant, are certain that
+            the user received the merchandise and/or service provided, per some or all of the provided evidence
+            points below.
+        </p>
+        <ul class="bullet-list">
+            {% for point in doc.cover_letter.defense_points %}
+            <li>{{ point }}</li>
+            {% endfor %}
+        </ul>
+
+        <h3 class="mini-title">Supporting Information Included</h3>
+        <ul class="bullet-list">
+            {% for item in doc.dynamic_evidence %}
+            {% if item.available %}
+            <li>{{ item.evidence_type }}</li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+
+        <div class="link-title">Purchase Geolocation, Device Fingerprint, Shipping Details of Other Transactions</div>
+        <table class="info-table">
+            <tr>
+                <th>IP Address</th>
+                <td>{{ doc.customer.ip_address }}</td>
+                <th>IP Country</th>
+                <td>{{ doc.customer.ip_country }}</td>
+            </tr>
+            <tr>
+                <th>Device ID / Web ID</th>
+                <td colspan="3">{{ doc.customer.device_id }}</td>
+            </tr>
+        </table>
+
+        <div class="link-title">Account History</div>
+        <table class="info-table">
+            <tr><th>Account Creation Time</th><td>{{ doc.customer.account_created }}</td></tr>
+            <tr><th>Email / Phone No.</th><td>{{ doc.customer.email }} / {{ doc.customer.phone }}</td></tr>
+            <tr><th>IP Country</th><td>{{ doc.customer.ip_country }}</td></tr>
+            <tr><th>IP Address</th><td>{{ doc.customer.ip_address }}</td></tr>
+            <tr><th>Device ID / Web ID</th><td>{{ doc.customer.device_id }}</td></tr>
+        </table>
+
+        <div class="link-title">Binding History</div>
+        <table class="info-table">
+            <tr><th>Card Binding Time</th><td>{{ doc.customer.card_binding_time }}</td></tr>
+            <tr><th>Card BIN</th><td>{{ doc.customer.card_bin }}</td></tr>
+            <tr><th>Card Last 4</th><td>{{ doc.customer.card_last_four }}</td></tr>
+            <tr><th>BIN Country</th><td>{{ doc.customer.bin_country }}</td></tr>
+        </table>
+
+        <div class="link-title">Payment History</div>
+        <table class="info-table">
+            <tr>
+                <th></th>
+                <th>Transaction 1</th>
+                <th>Transaction 2</th>
+            </tr>
+            <tr>
+                <th>Transaction Date</th>
+                <td>{{ doc.payment_history.txn1_date }}</td>
+                <td>{{ doc.payment_history.txn2_date }}</td>
+            </tr>
+            <tr>
+                <th>Amount</th>
+                <td>
+                    {% if doc.payment_history.txn1_amount is not none %}
+                    ${{ "%.2f"|format(doc.payment_history.txn1_amount) }} USD
+                    {% else %}
+                    Not available in source record
+                    {% endif %}
+                </td>
+                <td>${{ "%.2f"|format(doc.payment_history.txn2_amount) }} USD</td>
+            </tr>
+            <tr>
+                <th>Email / Phone No.</th>
+                <td>{{ doc.payment_history.txn1_email }}</td>
+                <td>{{ doc.payment_history.txn2_email }}</td>
+            </tr>
+            <tr>
+                <th>Card BIN</th>
+                <td>{{ doc.payment_history.txn1_card_bin }}</td>
+                <td>{{ doc.payment_history.txn2_card_bin }}</td>
+            </tr>
+            <tr>
+                <th>Card Last 4</th>
+                <td>{{ doc.payment_history.txn1_last4 }}</td>
+                <td>{{ doc.payment_history.txn2_last4 }}</td>
+            </tr>
+            <tr>
+                <th>BIN Country</th>
+                <td>{{ doc.payment_history.txn1_bin_country }}</td>
+                <td>{{ doc.payment_history.txn2_bin_country }}</td>
+            </tr>
+            <tr>
+                <th>IP Country</th>
+                <td>{{ doc.payment_history.txn1_ip_country }}</td>
+                <td>{{ doc.payment_history.txn2_ip_country }}</td>
+            </tr>
+            <tr>
+                <th>IP Address</th>
+                <td>{{ doc.payment_history.txn1_ip_address }}</td>
+                <td>{{ doc.payment_history.txn2_ip_address }}</td>
+            </tr>
+            <tr>
+                <th>Device ID / Web ID</th>
+                <td>{{ doc.payment_history.device_id }}</td>
+                <td>{{ doc.payment_history.device_id }}</td>
+            </tr>
+        </table>
+
+        <div class="footer">
+            <span>Confidential Dispute Representment Evidence</span>
+            <span>Page 3 of {{ doc.page_total }}</span>
+        </div>
+    </section>
+
+    <section class="page">
+        <div class="watermark">CONFIDENTIAL</div>
+        <div class="page-meta">
+            <div class="left">{{ doc.generated_at }}</div>
+            <div class="center">{{ doc.document_title }}</div>
+            <div class="right"></div>
+        </div>
+
+        <div class="link-title">Order Information, Payment and Customer Info</div>
+        <p style="font-size:13px; color:#667287; margin-top:-2px;">
+            Source data match: <strong>{{ doc.order.match_mode }}</strong>
+            (confidence score: {{ doc.order.match_score }}).
+        </p>
+
+        <div class="order-section">
+            <h4>Customer Info</h4>
+            <p>Name: {{ doc.customer.name }}</p>
+            <p>Phone: {{ doc.customer.phone }}</p>
+            <p>Email: {{ doc.customer.email }}</p>
+            <p>Address: {{ doc.customer.city }}, {{ doc.customer.state }}, {{ doc.customer.country }}</p>
+        </div>
+
+        <div class="order-section">
+            <h4>Product Name and Id</h4>
+            <p>Price: ${{ "%.2f"|format(doc.order.price) }}</p>
+            <p>Product Name: {{ doc.order.product_name }}</p>
+            <p>Product ID: {{ doc.order.product_id }}</p>
+            <p>Qty: {{ doc.order.quantity }}</p>
+            <p>Purchase Amount: ${{ "%.2f"|format(doc.order.purchase_amount) }}</p>
+        </div>
+
+        <div class="order-section">
+            <h4>Order Info</h4>
+            <p>Delivery Option: {{ doc.order.delivery_option }}</p>
+            <p>Order Date: {{ doc.order.order_date }}</p>
+            <p>Ship From Warehouse: {{ doc.order.ship_from }}</p>
+            <p>Shop Name: {{ doc.order.shop_name }}</p>
+        </div>
+
+        <div class="order-section">
+            <h4>Delivery Status</h4>
+            <p>Status: {{ doc.order.delivery_status }}</p>
+            <p>Content: {{ doc.order.delivery_event }}</p>
+            <p>Time: {{ doc.order.delivery_time }}</p>
+            <p>Title: {{ doc.order.delivery_title }}</p>
+            <p>Shipment Provider: {{ doc.order.shipment_provider }}</p>
+            <p>Tracking Number: {{ doc.order.tracking_number }}</p>
+        </div>
+
+        <div class="link-title">Payment Details</div>
+        <table class="info-table">
+            <tr>
+                <th>Merchant Name</th>
+                <td>{{ doc.payment.merchant_name }}</td>
+                <th>Merchant ID</th>
+                <td>{{ doc.payment.merchant_id }}</td>
+            </tr>
+            <tr>
+                <th>Transaction Currency</th>
+                <td>{{ doc.payment.currency }}</td>
+                <th>Transaction Amount</th>
+                <td style="color:#d21818; font-weight:800;">${{ "%.2f"|format(doc.payment.transaction_amount) }}</td>
+            </tr>
+            <tr>
+                <th>Transaction Date</th>
+                <td>{{ doc.payment.transaction_date }}</td>
+                <th>Authorization Code</th>
+                <td>{{ doc.payment.authorization_code }}</td>
+            </tr>
+            <tr>
+                <th>3DS Info</th>
+                <td>{{ doc.payment.threed_secure }}</td>
+                <th>Order ID</th>
+                <td>{{ doc.payment.order_id }}</td>
+            </tr>
+        </table>
+
+        <div class="legal-callout">
+            <h3>Conclusion</h3>
+            <p>{{ doc.cover_letter.conclusion }}</p>
+        </div>
+
+        <div class="support-note">
+            Please advise customers to communicate with the sellers, or raise a ticket to our customer service, or write an
+            email to {{ doc.support_email }} for customer support.
+        </div>
+
+        <div class="footer">
+            <span>Confidential Dispute Representment Evidence</span>
+            <span>Page 4 of {{ doc.page_total }}</span>
+        </div>
+    </section>
+</div>
+
+{% if auto_print %}
+<script>
+    window.addEventListener('load', function () {
+        setTimeout(function () { window.print(); }, 450);
+    });
+</script>
+{% endif %}
+</body>
+</html>

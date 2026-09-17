@@ -1,0 +1,344 @@
+{% extends "client_base.html" %}
+{% block title %}{{ p.processor }} Processor - {{ p.case_id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* The .processor-* components come from style.css, which this shell already
+       links. Only the bits that assumed the staff page's full-width body are
+       restated here. */
+    .back { font-size: 12.5px; color: var(--brand-dark); text-decoration: none; font-weight: 700; }
+    .back:hover { text-decoration: underline; }
+    .processor-content { max-width: none; margin: 0; padding: 0; }
+    .processor-header { border-radius: 12px 12px 0 0; }
+    .processor-section-header { cursor: default; }
+    .pv-note {
+        font-size: 12px; color: var(--ink-soft); margin: 10px 2px 0; line-height: 1.6;
+    }
+    @media (max-width: 760px) {
+        .processor-row { flex-direction: column; gap: 2px; }
+        .processor-row .p-label { width: auto; }
+        .pv-cols { grid-template-columns: 1fr !important; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="client-head">
+    <a class="back" href="{{ url_for('client_case', case_id=p.case_id) }}">&larr; Back to case</a>
+    <h2 style="margin-top:8px;">{{ p.processor }} Processor View</h2>
+    <p>How {{ p.processor }} shows this dispute on their own dispute screen.</p>
+</div>
+
+<!-- Channel-style header bar -->
+<div class="processor-header">
+    <div class="processor-logo
+        {% if p.processor == 'Adyen' %}adyen
+        {% elif p.processor == 'Braintree' %}braintree
+        {% elif p.processor == 'Worldpay' %}worldpay
+        {% elif p.processor == 'Stripe' %}stripe
+        {% endif %}">
+        {% if p.processor == 'Braintree' %}
+        PayPal Braintree
+        {% else %}
+        {{ p.processor }}
+        {% endif %}
+    </div>
+    <div class="processor-nav">
+        <span>Revenue &amp; risk</span>
+        <span>Disputes</span>
+        <span>Dispute details</span>
+    </div>
+</div>
+
+<div class="processor-content">
+    <!-- Chargeback Summary -->
+    <div class="processor-section" style="border-radius:0 0 4px 4px;">
+        <div class="processor-section-header">Chargeback</div>
+        <div class="processor-section-body">
+            <div class="processor-row">
+                <span class="p-label">Status</span>
+                <span class="p-value">
+                    <span class="status-badge {{ p.outcome|lower }}">{{ p.outcome }}</span>
+                </span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Dispute reason description</span>
+                {# Plain text, not a link: reason-code detail is a staff page. #}
+                <span class="p-value">{{ p.scenario }}</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Dispute amount</span>
+                <span class="p-value">{{ p.currency }} {{ "%.2f"|format(p.amount) }}</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Payment method</span>
+                <span class="p-value">
+                    <span class="card-type-badge">{{ p.payment_method|upper }}</span> {{ p.payment_method }}
+                </span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Dispute PSP reference</span>
+                <span class="p-value" style="font-family:monospace;">{{ p.dispute_psp_ref }}</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Dispute creation date</span>
+                <span class="p-value">{{ p.dispute_creation_date }}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="pv-cols" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <!-- Dispute Details -->
+        <div class="processor-section">
+            <div class="processor-section-header">Dispute details</div>
+            <div class="processor-section-body">
+                <div class="processor-row">
+                    <span class="p-label">Status</span>
+                    <span class="p-value"><span class="status-badge {{ p.outcome|lower }}">{{ p.outcome }}</span></span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Dispute PSP reference</span>
+                    <span class="p-value" style="font-family:monospace;">{{ p.dispute_psp_ref }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Auto defended</span>
+                    <span class="p-value">{{ 'Yes' if p.auto_defended else 'No' }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Reason</span>
+                    <span class="p-value">{{ p.scenario }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Reason code</span>
+                    <span class="p-value">{{ reason_label(p.reason_code, p.payment_method) }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Acquirer reference number (ARN)</span>
+                    <span class="p-value" style="font-family:monospace;">{{ p.acquirer_ref }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Acquirer code</span>
+                    <span class="p-value" style="font-family:monospace;">{{ p.acquirer_code }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Amount</span>
+                    <span class="p-value">{{ p.currency }} {{ "%.2f"|format(p.amount) }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Dispute creation date</span>
+                    <span class="p-value">{{ p.dispute_creation_date }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Rapid dispute resolution (RDR)</span>
+                    <span class="p-value">No</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card Details -->
+        <div class="processor-section">
+            <div class="processor-section-header">Card details</div>
+            <div class="processor-section-body">
+                <div class="processor-row">
+                    <span class="p-label">Card holder</span>
+                    <span class="p-value">{{ p.cardholder }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Card number</span>
+                    <span class="p-value" style="font-family:monospace;">****{{ p.card_last_four }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Expiry date</span>
+                    <span class="p-value">{{ p.card_expiry }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Card type</span>
+                    <span class="p-value"><span class="card-type-badge">{{ p.payment_method|upper }}</span> {{ p.payment_method }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Issuer country/region</span>
+                    <span class="p-value">{{ p.issuer_country }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Issuer name</span>
+                    <span class="p-value">{{ p.issuer_name }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">CVC/CVV</span>
+                    <span class="p-value">{{ p.cvv_response }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">AVS</span>
+                    <span class="p-value">{{ p.avs_response }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pv-cols" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <!-- Dispute History -->
+        <div class="processor-section">
+            <div class="processor-section-header">Dispute history
+                {% if p.last_event %}
+                <span style="margin-left:auto; font-size:12px; color:#888; font-weight:400;">Last status: {{ p.last_event }}</span>
+                {% endif %}
+            </div>
+            <div class="processor-section-body" style="padding:16px 20px;">
+                {# Network events only. Our own audit trail — who submitted it,
+                   which lead reopened it and why — is not the merchant's to
+                   read, and a processor would not show it either. #}
+                <div class="timeline">
+                    {% for event in p.timeline %}
+                    <div class="timeline-item">
+                        <div class="event-name" style="font-size:13px;">{{ event.event }}</div>
+                        <div class="event-date" style="font-size:11px;">{{ event.date }}</div>
+                    </div>
+                    {% else %}
+                    <div style="font-size:13px; color:#888;">Nothing recorded on this dispute yet.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Details -->
+        <div class="processor-section">
+            <div class="processor-section-header">Payment details</div>
+            <div class="processor-section-body">
+                <div class="processor-row">
+                    <span class="p-label">Payment PSP reference</span>
+                    <span class="p-value" style="font-family:monospace;">{{ p.payment_psp_ref }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Payment method</span>
+                    <span class="p-value"><span class="card-type-badge">{{ p.payment_method|upper }}</span> {{ p.payment_method }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Shopper interaction</span>
+                    <span class="p-value">Ecommerce</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Payment date</span>
+                    <span class="p-value">{{ p.transaction_date }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Amount</span>
+                    <span class="p-value">{{ p.currency }} {{ "%.2f"|format(p.amount) }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Merchant reference</span>
+                    <span class="p-value" style="font-family:monospace;">{{ p.order_id }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">3D Secure offered</span>
+                    <span class="p-value">{{ p.threed_secure }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">3D Secure authenticated</span>
+                    <span class="p-value">{{ p.threed_secure }}</span>
+                </div>
+                <div class="processor-row">
+                    <span class="p-label">Liability shift</span>
+                    <span class="p-value">{{ 'Yes' if p.liability_shift else 'No' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if p.issuer_comments %}
+    <!-- Received Documents / Issuer Comments -->
+    <div class="processor-section">
+        <div class="processor-section-header">Received documents</div>
+        <div class="processor-section-body" style="padding:4px 0;">
+            <div class="processor-row" style="font-size:13px; font-weight:600;">
+                <span class="p-label">Issuer's comments for pre-arbitration</span>
+                <span class="p-value"></span>
+            </div>
+        </div>
+        <div class="issuer-comment-box">
+            <strong>liabilityNotAcceptedFully:</strong> {{ p.issuer_comments }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Transaction Detail -->
+    <div class="processor-section">
+        <div class="processor-section-header">Transaction Information ({{ p.processor }} Processor View)</div>
+        <div class="processor-section-body">
+            <div class="processor-row">
+                <span class="p-label">Merchant</span>
+                <span class="p-value">{{ p.merchant }}</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Merchant Account</span>
+                <span class="p-value" style="font-family:monospace;">{{ p.merchant_account }}</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Transaction Type</span>
+                <span class="p-value">sale</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Amount Authorized</span>
+                <span class="p-value">{{ p.currency }} {{ "%.2f"|format(p.amount_authorized) }}</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Amount Settled</span>
+                <span class="p-value">{{ p.currency }} {{ "%.2f"|format(p.amount_settled) }}</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Transaction Date</span>
+                <span class="p-value">{{ p.transaction_date }}</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Order ID</span>
+                <span class="p-value" style="font-family:monospace;">{{ p.order_id }}</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Status</span>
+                <span class="p-value">Settled</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Descriptor Name</span>
+                <span class="p-value">{{ p.descriptor_name }}</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">Descriptor URL</span>
+                <span class="p-value">{{ p.descriptor_url }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fraud Tools Information -->
+    <div class="processor-section">
+        <div class="processor-section-header">Basic Fraud Tools Information</div>
+        <div class="processor-section-body">
+            <div class="processor-row">
+                <span class="p-label">AVS Response</span>
+                <span class="p-value">{{ p.avs_response }}</span>
+            </div>
+            <div class="processor-row">
+                <span class="p-label">CVV Response</span>
+                <span class="p-value">{{ p.cvv_response }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Defense Documents -->
+    <div class="processor-section">
+        <div class="processor-section-header">Defense documents</div>
+        <div class="processor-section-body" style="padding:16px 20px;">
+            {% if p.filed %}
+            <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:#f8f8f8; border-radius:4px;">
+                <span style="font-size:18px;">&#128196;</span>
+                <span style="font-size:14px;">Defense Material &mdash; Representment Letter</span>
+            </div>
+            {% else %}
+            <div style="font-size:13px; color:#888;">Nothing filed on this dispute yet.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="pv-note">
+    This mirrors the dispute as your processor holds it. Nothing here can be edited from the portal.
+</div>
+{% endblock %}

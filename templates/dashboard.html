@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 14px; margin-bottom: 22px; }
+.kpi-card {
+    background: var(--surface, #fff); border-radius: 10px; padding: 18px 16px; text-align: center;
+    box-shadow: 0 1px 6px rgba(0,0,0,.06); border-top: 3px solid var(--c-4a382c, #4a382c);
+}
+.kpi-card .kv { font-size: 26px; font-weight: 800; color: var(--ink-2, #2e1f17); }
+.kpi-card .kl { font-size: 11px; color: var(--ink-muted, #9c8578); font-weight: 600; text-transform: uppercase; margin-top: 4px; letter-spacing: .3px; }
+.triage-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.triage-card {
+    background: var(--surface, #fff); border-radius: 10px; padding: 16px; text-align: center;
+    box-shadow: 0 1px 6px rgba(0,0,0,.06); border-left: 4px solid var(--ink-soft-2, #7a6558);
+}
+.triage-card .tv { font-size: 30px; font-weight: 900; color: var(--ink-2, #2e1f17); }
+.triage-card .tl { font-size: 11px; color: var(--ink-muted, #9c8578); font-weight: 700; text-transform: uppercase; margin-top: 2px; }
+.triage-card .ts { font-size: 11px; color: var(--ink-faint, #b0998a); margin-top: 4px; }
+.tab-btn {
+    padding: 9px 20px; border-radius: 6px; font-size: 13px; font-weight: 700;
+    cursor: pointer; border: 1px solid var(--line-2, #e8dad0); background: var(--surface, #fff); color: var(--ink-soft-2, #7a6558); transition: .2s;
+}
+.tab-btn:hover { background: var(--surface-2, #f7efe9); }
+.tab-btn.active { background: var(--c-4a382c, #4a382c); color: var(--on-accent, #fff); border-color: var(--c-4a382c, #4a382c); }
+.stage-badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; background: var(--surface-2, #f7efe9); color: var(--c-6b584c, #6b584c); }
+.stage-pre_arb { background: var(--c-f5f5f5, #f5f5f5); color: var(--c-6d4c41, #6d4c41); }
+.stage-rfi { background: var(--c-f5f5f5, #f5f5f5); color: #b45309; }
+.action-status { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+.status-generated { background: #e8f5e9; color: #2e7d32; }
+.status-submitted { background: #c8e6c9; color: #1b5e20; }
+.status-review { background: #fff3e0; color: #e65100; }
+.status-accepted { background: var(--surface-2, #f7efe9); color: var(--ink-soft-2, #7a6558); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── KPI Summary ── #}
+{% set total = cases|length %}
+{% set total_amount = cases|sum(attribute='amount') %}
+<div class="kpi-row">
+    <div class="kpi-card">
+        <div class="kv">{{ total }}</div>
+        <div class="kl">Total Disputes</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kv">${{ "{:,.2f}".format(total_amount) }}</div>
+        <div class="kl">Total Disputed</div>
+    </div>
+</div>
+
+{# ── AI Triage Summary ── #}
+{% set auto_count = cases|selectattr('ml')|selectattr('ml.routing','equalto','auto_represent')|list|length %}
+{% set hitl_count = cases|selectattr('ml')|selectattr('ml.routing','equalto','hitl_review')|list|length %}
+{% set refund_count = cases|selectattr('ml')|selectattr('ml.routing','equalto','accept_refund')|list|length %}
+{# The lane's actual work item: recommendations no analyst has confirmed yet.
+   A recommendation on a case the sheet already decided is history, not work. #}
+{% set refund_pending = cases|selectattr('ml')|selectattr('ml.routing','equalto','accept_refund')
+                             |selectattr('case_status','equalto','Decision Pending')|list|length %}
+{% set avg_conf = (cases|selectattr('ml')|map(attribute='ml.confidence')|sum / total)|round|int if total > 0 else 0 %}
+<div class="triage-row">
+    <div class="triage-card">
+        <div class="tv">{{ auto_count }}</div>
+        <div class="tl">Auto-Represent</div>
+        <div class="ts">Rebuttal auto-generated</div>
+    </div>
+    <div class="triage-card">
+        <div class="tv">{{ hitl_count }}</div>
+        <div class="tl">Human Review</div>
+        <div class="ts">Rebuttal generated, pending review</div>
+    </div>
+    <div class="triage-card">
+        <div class="tv">{{ refund_count }}</div>
+        <div class="tl">Accept Recommended</div>
+        <div class="ts">{{ refund_pending }} awaiting analyst confirmation</div>
+    </div>
+    <div class="triage-card">
+        <div class="tv">{{ avg_conf }}%</div>
+        <div class="tl">Avg Confidence</div>
+        <div class="ts">Across all cases</div>
+    </div>
+</div>
+
+{# ── Tabs + Filter ── #}
+{% set auto_cases = cases|selectattr('ml')|selectattr('ml.routing','equalto','auto_represent')|list %}
+{% set hitl_cases = cases|selectattr('ml')|selectattr('ml.routing','equalto','hitl_review')|list %}
+{% set refund_cases = cases|selectattr('ml')|selectattr('ml.routing','equalto','accept_refund')|list %}
+
+<div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+    <button class="tab-btn active" id="tab-auto" onclick="switchTab('auto')">Auto Submissions ({{ auto_cases|length }})</button>
+    <button class="tab-btn" id="tab-hitl" onclick="switchTab('hitl')">HITL Cases ({{ hitl_cases|length }})</button>
+    <button class="tab-btn" id="tab-refund" onclick="switchTab('refund')">Accept Recommended ({{ refund_cases|length }})</button>
+    <button class="tab-btn" id="tab-all" onclick="switchTab('all')">All ({{ cases|length }})</button>
+
+    <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+        <label style="font-size:12px; font-weight:600; color:#b0998a; text-transform:uppercase;">Reason Code:</label>
+        <select id="filter-reason" onchange="filterByReason()" style="padding:7px 12px; border-radius:6px; border:1px solid #e8dad0; font-size:13px; min-width:160px;">
+            <option value="all">All Codes</option>
+            {# The value stays the bare code — filterByReason matches on it —
+               while the option text names it. `map(attribute='reason_code')`
+               could not do this: it drops the network, and a code cannot be
+               named without knowing whose it is. #}
+            {% for rc in reason_options %}
+            <option value="{{ rc.code }}">{{ rc.label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+{# ── Table macro with mode param ── #}
+{% macro case_table(case_list, table_id, mode) %}
+<div class="cases-table-wrapper" style="overflow-x:auto;">
+    <table class="cases-table" style="min-width:1100px;" id="{{ table_id }}">
+        <thead>
+            <tr>
+                <th style="min-width:130px;">Dispute ID</th>
+                <th style="min-width:80px;">Stage</th>
+                <th style="min-width:55px;">RC</th>
+                <th style="min-width:140px;">Description</th>
+                <th>Card</th>
+                <th>Processor</th>
+                <th>Amount</th>
+                <th>Ccy</th>
+                <th style="min-width:85px;">Due Date</th>
+                <th>Confidence</th>
+                <th>Status</th>
+                <th style="min-width:100px;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for case in case_list %}
+            <tr class="case-row" data-rc="{{ case.reason_code }}">
+                <td><a href="{{ url_for('case_detail', case_id=case.case_id) }}" class="case-id-link" style="font-family:monospace; font-size:11px;">{{ case.case_id }}</a></td>
+                <td>
+                    {% set st = case.get('dispute_stage', 'Chargeback') %}
+                    <span class="stage-badge {% if 'Pre' in st %}stage-pre_arb{% elif 'Request' in st or 'RFI' in st %}stage-rfi{% endif %}">{{ st }}</span>
+                </td>
+                <td><span style="background:#6b584c; color:#fff; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700;">{{ case.reason_code }}</span></td>
+                <td style="font-size:12px; max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ case.get('reason_description', case.scenario) }}">{{ case.get('reason_description', case.scenario) }}</td>
+                <td><span style="font-size:11px; font-weight:600; color:#7a6558;">{{ case.payment_method }}</span></td>
+                <td style="font-size:12px; color:#6b584c;">{{ case.processor }}</td>
+                <td style="font-weight:700; color:#2e1f17;">${{ "%.2f"|format(case.amount) }}</td>
+                <td style="font-size:11px; color:#9c8578;">{{ case.get('currency', 'USD') }}</td>
+                <td style="font-size:12px; color:#6b584c; {% if case.get('due_date') %}font-weight:600;{% endif %}">{{ case.get('due_date', case.submission_date) or '-' }}</td>
+                <td>
+                    {% if case.ml %}
+                    <span style="font-size:13px; font-weight:800; color:#2e1f17;">{{ case.ml.confidence }}%</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {# One pair of locals so the 'auto' tab and the all-tab
+                       branch cannot drift: the chip is Submitted only when
+                       the case actually is — `case` here is the per-request
+                       classified copy, which carries live submission_status. #}
+                    {% set auto_chip = ('status-submitted', 'Rebuttal Submitted')
+                       if case.submission_status == 'Submitted'
+                       else ('status-generated', 'Rebuttal Generated') %}
+                    {# "Chargeback Accepted" only when a concession actually
+                       happened. A decided case is history; anything else in
+                       this lane is still waiting on an analyst. #}
+                    {% set accept_chip = ('status-accepted', 'Chargeback Accepted')
+                       if case.case_status == 'Not Fought'
+                       else ('status-accepted', 'Case Closed')
+                       if case.case_status in ('Won', 'Lost')
+                       else ('status-review', 'Accept Recommended') %}
+                    {% if mode == 'auto' %}
+                    <span class="action-status {{ auto_chip[0] }}">{{ auto_chip[1] }}</span>
+                    {% elif mode == 'hitl' %}
+                    <span class="action-status status-review">Pending Review</span>
+                    {% elif mode == 'accept' %}
+                    <span class="action-status {{ accept_chip[0] }}">{{ accept_chip[1] }}</span>
+                    {% else %}
+                        {% if case.ml and case.ml.routing == 'auto_represent' %}
+                        <span class="action-status {{ auto_chip[0] }}">{{ auto_chip[1] }}</span>
+                        {% elif case.ml and case.ml.routing == 'hitl_review' %}
+                        <span class="action-status status-review">Pending Review</span>
+                        {% else %}
+                        <span class="action-status {{ accept_chip[0] }}">{{ accept_chip[1] }}</span>
+                        {% endif %}
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('case_detail', case_id=case.case_id) }}" class="review-btn" style="font-size:11px; padding:4px 10px;">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endmacro %}
+
+{# ── Tab Panels ── #}
+<div id="panel-auto" class="tab-panel">{{ case_table(auto_cases, 'tbl-auto', 'auto') }}</div>
+<div id="panel-hitl" class="tab-panel" style="display:none;">{{ case_table(hitl_cases, 'tbl-hitl', 'hitl') }}</div>
+<div id="panel-refund" class="tab-panel" style="display:none;">{{ case_table(refund_cases, 'tbl-refund', 'accept') }}</div>
+<div id="panel-all" class="tab-panel" style="display:none;">{{ case_table(cases, 'tbl-all', 'all') }}</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function switchTab(tab) {
+    ['auto','hitl','refund','all'].forEach(function(t) {
+        document.getElementById('panel-' + t).style.display = t === tab ? 'block' : 'none';
+        var btn = document.getElementById('tab-' + t);
+        if (t === tab) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+    document.getElementById('filter-reason').value = 'all';
+    filterByReason();
+}
+
+function filterByReason() {
+    var rc = document.getElementById('filter-reason').value;
+    document.querySelectorAll('.case-row').forEach(function(row) {
+        if (rc === 'all' || row.getAttribute('data-rc') === rc) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

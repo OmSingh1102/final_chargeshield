@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}Merchant Configuration - ChargeShield AI{% endblock %}
+
+{% block extra_css %}
+<style>
+.mc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 900px) { .mc-grid { grid-template-columns: 1fr; } }
+.mc-section {
+    background: var(--surface, #fff); border-radius: 10px; padding: 20px 24px; margin-bottom: 18px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.06);
+}
+.mc-section h3 {
+    font-size: 14px; font-weight: 800; color: var(--ink-2, #2e1f17); text-transform: uppercase;
+    letter-spacing: .4px; margin: 0 0 16px; padding-bottom: 10px; border-bottom: 1px solid var(--surface-2, #f7efe9);
+}
+.mc-section h3 .dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px;
+}
+.mc-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; }
+.mc-field { display: flex; flex-direction: column; gap: 4px; }
+.mc-field.full { grid-column: 1 / -1; }
+.mc-field label {
+    font-size: 11px; font-weight: 700; color: var(--ink-muted, #9c8578); text-transform: uppercase; letter-spacing: .3px;
+}
+.mc-field input, .mc-field select, .mc-field textarea {
+    padding: 9px 12px; border: 1px solid var(--c-efe2d8, #efe2d8); border-radius: 6px; font-size: 13px;
+    color: var(--ink-2, #2e1f17); background: var(--surface, #fff); transition: border-color .2s;
+}
+.mc-field input:focus, .mc-field select:focus, .mc-field textarea:focus {
+    outline: none; border-color: var(--brand, #f4611a); box-shadow: 0 0 0 3px rgba(21,101,192,.1);
+}
+.mc-field input[type="password"] { font-family: monospace; }
+.mc-field .source-file { font-size: 10px; color: var(--brand, #f4611a); cursor: pointer; margin-top: 2px; }
+
+/* Field mapping table */
+.fm-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.fm-table th {
+    text-align: left; color: var(--ink-muted, #9c8578); font-weight: 700; padding: 8px 10px;
+    border-bottom: 2px solid var(--surface-2, #f7efe9); font-size: 11px; text-transform: uppercase;
+}
+.fm-table td { padding: 7px 10px; border-bottom: 1px solid var(--c-f5f5f5, #f5f5f5); color: var(--ink-2, #2e1f17); }
+.fm-table tr:hover { background: var(--c-fcf6f1, #fcf6f1); }
+.fm-source { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
+.fm-src-gateway { background: #e8f5e9; color: #2e7d32; }
+.fm-src-crm { background: #fff3e0; color: #e65100; }
+.fm-src-processor { background: var(--brand-tint, #ffeadd); color: var(--brand, #f4611a); }
+.fm-src-auto { background: var(--surface-2, #f7efe9); color: var(--ink-soft-2, #7a6558); }
+.fm-src-manual { background: #fef3e2; color: #b45309; }
+.fm-src-config { background: #fce4ec; color: #c62828; }
+
+/* Buttons */
+.mc-btn-row { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+.mc-btn {
+    padding: 10px 28px; border-radius: 6px; font-size: 13px; font-weight: 700;
+    cursor: pointer; border: none; transition: .2s;
+}
+.mc-btn-save { background: var(--c-4a382c, #4a382c); color: var(--on-accent, #fff); }
+.mc-btn-save:hover { background: var(--ink-2, #2e1f17); }
+.mc-btn-cancel { background: var(--surface, #fff); color: var(--ink-soft-2, #7a6558); border: 1px solid var(--line-2, #e8dad0); }
+.mc-btn-cancel:hover { background: var(--surface-2, #f7efe9); }
+
+/* Status indicator */
+.mc-status { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.mc-status-dot { width: 8px; height: 8px; border-radius: 50%; }
+.mc-status-active { background: #2e7d32; }
+.mc-status-inactive { background: #c62828; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 style="font-size:20px; font-weight:800; color:#2e1f17; margin-bottom:4px;">Merchant Configuration</h2>
+<p style="font-size:13px; color:#9c8578; margin-bottom:20px;">Configure merchant profile, portal credentials, and data source mappings</p>
+
+<form method="POST" action="{{ url_for('merchant_config') }}">
+<div class="mc-grid">
+    {# ═══ LEFT COLUMN ═══ #}
+    <div>
+        {# Section A: Merchant Profile #}
+        <div class="mc-section">
+            <h3><span class="dot" style="background:#b45309;"></span>Merchant Profile</h3>
+            <div class="mc-form-grid">
+                <div class="mc-field">
+                    <label>Customer ID</label>
+                    <input type="text" name="customer_id" value="{{ config.customer_id }}" placeholder="Auto-generated">
+                </div>
+                <div class="mc-field">
+                    <label>Status</label>
+                    <select name="status">
+                        <option value="Active" {% if config.status == 'Active' %}selected{% endif %}>Active</option>
+                        <option value="Inactive" {% if config.status == 'Inactive' %}selected{% endif %}>Inactive</option>
+                    </select>
+                </div>
+                <div class="mc-field">
+                    <label>Company Name</label>
+                    <input type="text" name="company_name" value="{{ config.company_name }}" placeholder="Company Registered">
+                </div>
+                <div class="mc-field">
+                    <label>DBA Name</label>
+                    <input type="text" name="dba_name" value="{{ config.dba_name }}" placeholder="Merchant Account DBA">
+                </div>
+                <div class="mc-field">
+                    <label>Services</label>
+                    <select name="services">
+                        <option value="Chargeback" {% if config.services == 'Chargeback' %}selected{% endif %}>Chargeback</option>
+                        <option value="Alerts" {% if config.services == 'Alerts' %}selected{% endif %}>Alerts</option>
+                        <option value="RDR" {% if config.services == 'RDR' %}selected{% endif %}>RDR</option>
+                        <option value="Chargeback + Alerts" {% if config.services == 'Chargeback + Alerts' %}selected{% endif %}>Chargeback + Alerts</option>
+                    </select>
+                </div>
+                <div class="mc-field">
+                    <label>Merchant Account Number</label>
+                    <input type="text" name="merchant_account_number" value="{{ config.merchant_account_number }}" placeholder="MID Number">
+                </div>
+                <div class="mc-field full">
+                    <label>MID Alias Name</label>
+                    <input type="text" name="mid_alias_name" value="{{ config.mid_alias_name }}" placeholder="Processor name + last 4 digit of MID">
+                </div>
+                <div class="mc-field full">
+                    <label>Miscellaneous Notes</label>
+                    <textarea name="notes" rows="2" placeholder="Additional notes">{{ config.notes }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        {# Section B1: Gateway Config #}
+        <div class="mc-section">
+            <h3><span class="dot" style="background:#2e7d32;"></span>Gateway Configuration</h3>
+            <div class="mc-form-grid">
+                <div class="mc-field">
+                    <label>Gateway Name</label>
+                    <select name="gateway_name">
+                        {% for gw in ['Cybersource', 'Authorize.net', 'NMI', 'Stripe', 'Braintree', 'Adyen', 'Worldpay', 'Square', 'PayPal'] %}
+                        <option value="{{ gw }}" {% if config.gateway_name == gw %}selected{% endif %}>{{ gw }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mc-field">
+                    <label>Gateway URL</label>
+                    <input type="url" name="gateway_url" value="{{ config.gateway_url }}" placeholder="https://...">
+                </div>
+                <div class="mc-field">
+                    <label>Gateway Username</label>
+                    <input type="text" name="gateway_username" value="{{ config.gateway_username }}" placeholder="Standalone login">
+                </div>
+                <div class="mc-field">
+                    <label>Gateway Password</label>
+                    <input type="password" name="gateway_password" value="{{ config.gateway_password }}" placeholder="********">
+                </div>
+                <div class="mc-field">
+                    <label>API Login ID</label>
+                    <input type="text" name="gateway_api_login_id" value="{{ config.gateway_api_login_id }}">
+                </div>
+                <div class="mc-field">
+                    <label>Transaction Key</label>
+                    <input type="password" name="gateway_transaction_key" value="{{ config.gateway_transaction_key }}">
+                </div>
+            </div>
+        </div>
+
+        {# Section B2: Processor Config #}
+        <div class="mc-section">
+            <h3><span class="dot" style="background:#f4611a;"></span>Processor Configuration</h3>
+            <div class="mc-form-grid">
+                <div class="mc-field">
+                    <label>Processor Name</label>
+                    <select name="processor_name">
+                        {% for proc in ['American Express', 'Visa', 'Mastercard', 'Discover', 'Worldpay', 'Adyen', 'Braintree', 'Stripe'] %}
+                        <option value="{{ proc }}" {% if config.processor_name == proc %}selected{% endif %}>{{ proc }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mc-field">
+                    <label>Processor URL</label>
+                    <input type="url" name="processor_url" value="{{ config.processor_url }}" placeholder="https://...">
+                </div>
+                <div class="mc-field">
+                    <label>Processor Username</label>
+                    <input type="text" name="processor_username" value="{{ config.processor_username }}" placeholder="Standalone login">
+                </div>
+                <div class="mc-field">
+                    <label>Processor Password</label>
+                    <input type="password" name="processor_password" value="{{ config.processor_password }}" placeholder="********">
+                </div>
+            </div>
+        </div>
+
+        {# Section B3: CRM Config #}
+        <div class="mc-section">
+            <h3><span class="dot" style="background:#e65100;"></span>CRM Configuration</h3>
+            <div class="mc-form-grid">
+                <div class="mc-field">
+                    <label>CRM Name</label>
+                    <select name="crm_name">
+                        {% for crm in ['Konnektive', 'Salesforce', 'Shopify', 'HubSpot', 'Zoho', 'Freshdesk', 'Custom'] %}
+                        <option value="{{ crm }}" {% if config.crm_name == crm %}selected{% endif %}>{{ crm }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mc-field">
+                    <label>CRM URL</label>
+                    <input type="url" name="crm_url" value="{{ config.crm_url }}" placeholder="https://...">
+                </div>
+                <div class="mc-field">
+                    <label>CRM Username</label>
+                    <input type="text" name="crm_username" value="{{ config.crm_username }}" placeholder="Standalone login">
+                </div>
+                <div class="mc-field">
+                    <label>CRM Password</label>
+                    <input type="password" name="crm_password" value="{{ config.crm_password }}" placeholder="********">
+                </div>
+                <div class="mc-field">
+                    <label>CRM API Username</label>
+                    <input type="text" name="crm_api_username" value="{{ config.crm_api_username }}">
+                </div>
+                <div class="mc-field">
+                    <label>CRM API Password</label>
+                    <input type="password" name="crm_api_password" value="{{ config.crm_api_password }}">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ═══ RIGHT COLUMN — Field Mapping ═══ #}
+    <div>
+        <div class="mc-section" style="position:sticky; top:70px;">
+            <h3><span class="dot" style="background:#2e1f17;"></span>Case Field Mapping &mdash; Data Sources</h3>
+            <p style="font-size:11px; color:#b0998a; margin-bottom:12px;">Shows where each field is fetched from when a dispute is received</p>
+            <table class="fm-table">
+                <thead>
+                    <tr><th>Field</th><th>Data Source</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>ID</td><td><span class="fm-source fm-src-auto">Auto-generated</span></td></tr>
+                    <tr><td>Client ID</td><td><span class="fm-source fm-src-auto">Auto-generated</span></td></tr>
+                    <tr><td>Company Name</td><td><span class="fm-source fm-src-config">Configured</span></td></tr>
+                    <tr><td>Merchant Acct Number</td><td><span class="fm-source fm-src-config">Configured</span></td></tr>
+                    <tr><td>Payment Processor Name</td><td><span class="fm-source fm-src-config">Configured</span></td></tr>
+                    <tr><td>MID Alias</td><td><span class="fm-source fm-src-config">Configured</span></td></tr>
+                    <tr><td>MID Status</td><td><span class="fm-source fm-src-auto">Active</span></td></tr>
+                    <tr><td style="font-weight:700;">Transaction ID</td><td><span class="fm-source fm-src-gateway">Gateway API</span></td></tr>
+                    <tr><td style="font-weight:700;">Transaction Amount</td><td><span class="fm-source fm-src-gateway">Gateway API</span></td></tr>
+                    <tr><td>Transaction Date</td><td><span class="fm-source fm-src-manual">Calendar</span></td></tr>
+                    <tr><td style="font-weight:700;">Customer ID</td><td><span class="fm-source fm-src-crm">CRM</span></td></tr>
+                    <tr><td style="font-weight:700;">Customer Name</td><td><span class="fm-source fm-src-crm">CRM</span></td></tr>
+                    <tr><td style="font-weight:700;">Customer Email</td><td><span class="fm-source fm-src-crm">CRM</span></td></tr>
+                    <tr><td style="font-weight:700;">Customer IP</td><td><span class="fm-source fm-src-crm">CRM / Gateway</span></td></tr>
+                    <tr><td>Customer Phone</td><td><span class="fm-source fm-src-crm">CRM</span></td></tr>
+                    <tr><td>State</td><td><span class="fm-source fm-src-config">Configured</span></td></tr>
+                    <tr><td>Chargeback Date</td><td><span class="fm-source fm-src-manual">Calendar</span></td></tr>
+                    <tr><td style="font-weight:700;">Card Type</td><td><span class="fm-source fm-src-gateway">Gateway API</span></td></tr>
+                    <tr><td style="font-weight:700;">Card First Six</td><td><span class="fm-source fm-src-gateway">Gateway API</span></td></tr>
+                    <tr><td style="font-weight:700;">Card Last Four</td><td><span class="fm-source fm-src-gateway">Gateway API</span></td></tr>
+                    <tr><td style="font-weight:700;">Auth Code</td><td><span class="fm-source fm-src-gateway">Gateway API</span></td></tr>
+                    <tr><td>Chargeback Deadline</td><td><span class="fm-source fm-src-manual">Calendar</span></td></tr>
+                    <tr><td>Dispute Method</td><td><span class="fm-source fm-src-config">Fax</span></td></tr>
+                    <tr><td>Dispute Filed Date</td><td><span class="fm-source fm-src-manual">Calendar</span></td></tr>
+                    <tr><td>CBT Filed Date</td><td><span class="fm-source fm-src-manual">Calendar</span></td></tr>
+                    <tr><td style="font-weight:700;">Chargeback Case#</td><td><span class="fm-source fm-src-processor">Processor Portal</span></td></tr>
+                    <tr><td style="font-weight:700;">ARN Number</td><td><span class="fm-source fm-src-processor">Processor Portal</span></td></tr>
+                    <tr><td>Chargeback Amount</td><td><span class="fm-source fm-src-config">$ amount</span></td></tr>
+                    <tr><td>CB Reason Code</td><td><span class="fm-source fm-src-config">Configured</span></td></tr>
+                    <tr><td>Chargeback Category</td><td><span class="fm-source fm-src-config">Configured</span></td></tr>
+                    <tr><td>Reason for Legitimate CB</td><td><span class="fm-source fm-src-manual">Manual</span></td></tr>
+                    <tr><td>Root Cause</td><td><span class="fm-source fm-src-manual">Manual</span></td></tr>
+                    <tr><td>Order ID</td><td><span class="fm-source fm-src-crm">CRM</span></td></tr>
+                    <tr><td>DBA Name</td><td><span class="fm-source fm-src-config">Configured</span></td></tr>
+                    <tr><td>Refund Issued</td><td><span class="fm-source fm-src-crm">CRM</span></td></tr>
+                    <tr><td>AVS Match</td><td><span class="fm-source fm-src-gateway">Gateway API</span></td></tr>
+                    <tr><td>CVV Match</td><td><span class="fm-source fm-src-gateway">Gateway API</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="mc-btn-row">
+    <button type="button" class="mc-btn mc-btn-cancel" onclick="window.location.href='{{ home_url }}'">Cancel</button>
+    <button type="submit" class="mc-btn mc-btn-save">Save Configuration</button>
+</div>
+</form>
+{% endblock %}

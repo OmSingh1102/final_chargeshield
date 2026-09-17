@@ -1,0 +1,200 @@
+{# Profile, theme and password, shared by the agent, team-lead, manager and
+   client settings pages. Self-contained on purpose: agent_base ships no
+   toast(), so each card reports its own result inline rather than depending on
+   the shell.
+
+   Callers may set `show_theme = false` before including. The client portal does:
+   it is merchant-facing branding rather than a staff preference, so it is
+   deliberately left unthemed and must not offer a picker that would do nothing.
+       {% with show_theme = false %}{% include "_account_settings.html" %}{% endwith %}
+#}
+{% set show_theme = show_theme if show_theme is defined else true %}
+
+<style>
+    .acc-grid { max-width: 660px; display: flex; flex-direction: column; gap: 14px; }
+    .acc-card {
+        background: var(--surface, #fff); border: 1px solid var(--line, #f2e4da);
+        border-radius: 14px; padding: 19px 22px; box-shadow: var(--shadow);
+    }
+    .acc-card h3 {
+        font-size: 14px; font-weight: 800; color: var(--ink, #2b1b12); margin: 0 0 3px;
+    }
+    .acc-card .sub {
+        font-size: 12.5px; color: var(--ink-soft, #8a7365); margin-bottom: 15px; line-height: 1.5;
+    }
+    .acc-field { display: block; margin-bottom: 12px; }
+    .acc-field > span {
+        display: block; font-size: 11.5px; font-weight: 800; letter-spacing: .3px;
+        color: var(--ink, #2b1b12); margin-bottom: 4px;
+    }
+    .acc-field input {
+        width: 100%; box-sizing: border-box; font: inherit; font-size: 13px;
+        padding: 9px 12px; border-radius: 9px; background: var(--surface, #fff);
+        border: 1px solid var(--line-strong, #fbd9c4); color: var(--ink, #2b1b12);
+    }
+    .acc-field input:focus { outline: 2px solid rgba(244, 97, 26, .3); outline-offset: -1px; }
+    .acc-row { display: flex; gap: 10px; }
+    .acc-row .acc-field { flex: 1; }
+
+    .acc-go {
+        font-size: 12.5px; font-weight: 700; padding: 9px 18px; border-radius: 9px;
+        cursor: pointer; border: none; background: var(--brand, #f4611a); color: var(--on-accent, #fff);
+    }
+    .acc-go:hover { background: var(--brand-dark, #c2410c); }
+    .acc-note { font-size: 12px; margin-left: 12px; font-weight: 600; }
+    .acc-note.ok { color: #2e7d32; }
+    .acc-note.err { color: #c62828; }
+
+    /* Theme picker — each swatch previews the palette it selects. */
+    .theme-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .theme-pick {
+        flex: 1; min-width: 150px; text-align: left; cursor: pointer; padding: 12px 14px;
+        border-radius: 12px; font: inherit; background: var(--surface, #fff);
+        border: 2px solid var(--line, #f2e4da); transition: border-color .15s;
+    }
+    .theme-pick:hover { border-color: var(--brand, #f4611a); }
+    .theme-pick.on { border-color: var(--brand, #f4611a); box-shadow: 0 0 0 3px rgba(244,97,26,.12); }
+    .theme-pick .nm { font-size: 13px; font-weight: 800; color: var(--ink, #2b1b12); }
+    .theme-pick .bl { font-size: 11.5px; color: var(--ink-soft, #8a7365); margin-top: 2px; line-height: 1.4; }
+    .swatch { display: flex; gap: 4px; margin-bottom: 9px; }
+    .swatch i { width: 22px; height: 22px; border-radius: 5px; border: 1px solid rgba(0,0,0,.08); }
+
+    .pw-state {
+        display: inline-block; font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .4px; padding: 4px 10px; border-radius: 999px; margin-bottom: 12px;
+    }
+    .pw-state.ok { background: #e8f5e9; color: #2e7d32; }
+    .pw-state.soon { background: #fff4e5; color: #b45309; }
+    .pw-state.over { background: #fdeceb; color: #c62828; }
+</style>
+
+<div class="acc-grid">
+
+    <div class="acc-card">
+        <h3>Profile</h3>
+        {# session.email is only set by the Straive door, which asks for one.
+           The client door does not, so it is guarded rather than assumed. #}
+        <div class="sub">The name shown against your work. Signed in as <b>{{ session.user }}</b> &mdash; {{ role_label }}{% if session.email %} &middot; {{ session.email }}{% endif %}.</div>
+        <div class="acc-row">
+            <label class="acc-field"><span>Display name</span>
+                <input id="acc-name" value="{{ profile.display_name }}" maxlength="60"></label>
+            <label class="acc-field"><span>Email</span>
+                <input id="acc-email" value="{{ profile.email }}" maxlength="120" placeholder="optional"></label>
+        </div>
+        <button class="acc-go" onclick="saveProfile()">Save profile</button>
+        <span class="acc-note" id="acc-profile-note"></span>
+    </div>
+
+    {% if show_theme %}
+    <div class="acc-card">
+        <h3>Interface colour</h3>
+        <div class="sub">
+            Applies to your account only. Status colours &mdash; green for won, red for lost,
+            amber for a warning &mdash; stay the same in every theme so they keep their meaning.
+        </div>
+        <div class="theme-row">
+            {% for key, t in themes.items() %}
+            <button type="button" class="theme-pick {% if profile.theme == key %}on{% endif %}"
+                    data-theme-key="{{ key }}" onclick="setTheme('{{ key }}')">
+                {#- Each swatch previews accent / surface / text for the palette
+                    it selects, taken from the token values in style.css. The
+                    "blue" arm was dropped with the theme itself. -#}
+                <div class="swatch">
+                    {% if key == 'default' %}
+                    <i style="background:oklch(0.63 0.168 45)"></i><i style="background:oklch(0.995 0.004 80)"></i><i style="background:oklch(0.129 0.042 264.695)"></i>
+                    {% else %}
+                    <i style="background:oklch(0.74 0.152 52)"></i><i style="background:oklch(0.129 0.042 264.695)"></i><i style="background:oklch(0.984 0.003 247.858)"></i>
+                    {% endif %}
+                </div>
+                <div class="nm">{{ t.label }}</div>
+                <div class="bl">{{ t.blurb }}</div>
+            </button>
+            {% endfor %}
+        </div>
+        <span class="acc-note" id="acc-theme-note"></span>
+    </div>
+    {% endif %}
+
+    <div class="acc-card">
+        <h3>Password</h3>
+        {% if pw_age is not none %}
+            {% if pw_days_left is not none and pw_days_left < 0 %}
+            <span class="pw-state over">{{ pw_age }} days old &middot; past the {{ pw_max_age }}-day policy</span>
+            {% elif pw_days_left is not none and pw_days_left <= 7 %}
+            <span class="pw-state soon">Changes in {{ pw_days_left }} day{{ '' if pw_days_left == 1 else 's' }}</span>
+            {% else %}
+            <span class="pw-state ok">{{ pw_age }} days old &middot; {{ pw_days_left }} left</span>
+            {% endif %}
+        {% endif %}
+        <div class="sub">
+            Passwords must be changed every {{ pw_max_age }} days.
+            {% if pw_is_custom %}Yours is stored as a salted hash.
+            {% else %}Yours is still the built-in demo password.{% endif %}
+        </div>
+        <label class="acc-field"><span>Current password</span>
+            <input id="acc-pw-cur" type="password" autocomplete="current-password"></label>
+        <div class="acc-row">
+            <label class="acc-field"><span>New password</span>
+                <input id="acc-pw-new" type="password" autocomplete="new-password"
+                       placeholder="At least {{ min_password }} characters"></label>
+            <label class="acc-field"><span>Confirm</span>
+                <input id="acc-pw-confirm" type="password" autocomplete="new-password"></label>
+        </div>
+        <button class="acc-go" onclick="changePassword()">Change password</button>
+        <span class="acc-note" id="acc-pw-note"></span>
+    </div>
+</div>
+
+<script>
+function accPost(url, body, noteId, onOk) {
+    var note = document.getElementById(noteId);
+    note.textContent = '';
+    note.className = 'acc-note';
+    return fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                       body: JSON.stringify(body)})
+        .then(function (r) { return r.json().then(function (j) { return {ok: r.ok, j: j}; }); })
+        .then(function (res) {
+            if (!res.ok || !res.j.ok) {
+                note.textContent = (res.j && res.j.error) || 'That did not save.';
+                note.className = 'acc-note err';
+                return;
+            }
+            note.textContent = 'Saved.';
+            note.className = 'acc-note ok';
+            if (onOk) { onOk(res.j); }
+        })
+        .catch(function () {
+            note.textContent = 'That did not save.';
+            note.className = 'acc-note err';
+        });
+}
+
+function saveProfile() {
+    accPost('{{ url_for("settings_profile") }}',
+            {display_name: document.getElementById('acc-name').value,
+             email: document.getElementById('acc-email').value},
+            'acc-profile-note');
+}
+
+{% if show_theme %}
+function setTheme(key) {
+    accPost('{{ url_for("settings_theme") }}', {theme: key}, 'acc-theme-note', function () {
+        // Reload so the whole shell repaints, not just this page's cards.
+        location.reload();
+    });
+}
+{% endif %}
+
+function changePassword() {
+    var cur = document.getElementById('acc-pw-cur');
+    var neu = document.getElementById('acc-pw-new');
+    var con = document.getElementById('acc-pw-confirm');
+    accPost('{{ url_for("settings_password") }}',
+            {current: cur.value, new: neu.value, confirm: con.value},
+            'acc-pw-note', function () {
+        // Never leave a typed password sitting in the DOM after it has landed.
+        cur.value = neu.value = con.value = '';
+        setTimeout(function () { location.reload(); }, 700);
+    });
+}
+</script>

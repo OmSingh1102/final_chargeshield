@@ -1,0 +1,177 @@
+{% extends "client_base.html" %}
+{% import "_charts.html" as charts %}
+{% block title %}Dashboard - {{ c.client }}{% endblock %}
+
+{% block extra_css %}
+{{ charts.chart_css() }}
+<style>
+    .tier-card {
+        background: linear-gradient(180deg, var(--surface, #fff) 0%, var(--c-fffaf6, #fffaf6) 100%);
+        border: 1px solid var(--line-strong); border-radius: 16px;
+        padding: 20px 22px; box-shadow: var(--shadow); margin-bottom: 22px;
+    }
+    .tier-card .tier-pill {
+        display: inline-block; padding: 5px 14px; border-radius: 999px;
+        font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px;
+    }
+    .tier-pill.semi_automated  { background: #fff4e5; color: #b45309; }
+    .tier-card p { font-size: 13px; color: var(--c-6b584c, #6b584c); line-height: 1.6; margin: 12px 0 0; }
+    /* The package card's two halves: the team's service, the platform product. */
+    .pkg-head { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+    .pkg-sub { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 14px; }
+    .pkg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    @media (max-width: 760px) { .pkg-grid { grid-template-columns: 1fr; } }
+    .pkg-h {
+        font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .5px; color: var(--ink-soft); margin-bottom: 8px;
+    }
+    .pkg-grid ul { margin: 12px 0 0; padding-left: 18px; }
+    .pkg-grid li { font-size: 13px; color: var(--c-6b584c, #6b584c); line-height: 1.7; }
+    .acct-tbl { width: 100%; border-collapse: collapse; }
+    .acct-tbl th {
+        text-align: left; font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .4px; color: var(--ink-soft); padding: 8px 12px 8px 0;
+        width: 34%; white-space: nowrap; vertical-align: top;
+    }
+    .acct-tbl td { font-size: 12.5px; color: var(--ink); padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .acct-tbl td.empty { color: var(--c-bcaa9d, #bcaa9d); }
+    .money { font-variant-numeric: tabular-nums; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="client-head">
+    <h2>{{ c.client }}</h2>
+    <p>Your chargebacks, how they are being defended, and the account behind them.</p>
+    <span class="scope-note">&#128274; You are seeing only your own brand's cases</span>
+</div>
+
+<div class="kpi-strip">
+    <div class="kpi"><div class="v">{{ c.totals.cases }}</div><div class="l">Your Cases</div></div>
+    <div class="kpi"><div class="v">{{ c.totals.outstanding }}</div><div class="l">Awaiting Decision</div></div>
+    <div class="kpi"><div class="v">{{ c.totals.submitted }}</div><div class="l">Sent to Network</div></div>
+    <div class="kpi"><div class="v">{{ c.totals.won }}</div><div class="l">Won</div></div>
+    <div class="kpi"><div class="v">{{ c.totals.lost }}</div><div class="l">Lost</div></div>
+</div>
+
+{# The tier is the client's own contract, so say what it means for them rather
+   than repeating the internal wording used on the manager console. Framed as
+   the combined package it is sold as: the service half is the team and the
+   tier that governs how rebuttals are built; the product half is this portal.
+   Every product bullet is a live feature of the pages behind this one — no
+   roadmap items. #}
+<div class="tier-card">
+    <div class="pkg-head">Your Package</div>
+    <div class="pkg-sub">One engagement, two halves &mdash; the team defending your
+        disputes, and the platform you are looking at.</div>
+    <div class="pkg-grid">
+        <div>
+            <div class="pkg-h">Service</div>
+            <span class="tier-pill {{ c.tier }}">{{ c.tier_label }}</span>
+            <p>{{ c.tier_blurb }}</p>
+            <p>
+                Straive's chargeback team works every dispute in this book. We
+                assemble what your records cover and come back to you only for
+                the pieces we cannot reach &mdash; proof of delivery and
+                authentication results among them, which no system on our side
+                can produce.
+            </p>
+        </div>
+        <div>
+            <div class="pkg-h">Product</div>
+            <ul>
+                <li>Live view of every dispute, its evidence and its outcome</li>
+                <li>The defence packet and cover letter filed on each case</li>
+                <li>Charts over your own book &mdash; networks, processors, trend</li>
+                <li>An encrypted vault for the credentials that connect your systems</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+{# Every chart is computed from this brand's own cases — the same ManagerCharts
+   the internal consoles use, projected to what a merchant may see. With a
+   single client book that is now the whole 100, so the numbers match the
+   internal consoles; the staff-only fields are still projected out. #}
+{# Paired by height, not by subject. The processor breakdown is ten stacked
+   columns over a ten-row table of per-currency amounts, so it stands far taller
+   than anything that could sit beside it — pairing it with the pie left roughly
+   six hundred pixels of blank column, and the status chart was left alone in a
+   two-column row with an empty half beside it. The two comparable cards now
+   share the top row and the processor card takes a full row of its own, which
+   its ten columns and wrapping currency lists both wanted anyway. #}
+{% if c.charts.has_data %}
+<div class="chart-grid-2">
+    {{ charts.network_pie(c.charts) }}
+    {{ charts.status_stack(c.charts) }}
+</div>
+<div class="chart-full">
+    {{ charts.processor_stack(c.charts) }}
+</div>
+{{ charts.volume_trend(c.charts) }}
+{% endif %}
+
+{# The merchant's own view of the connection state the staff pages read: which
+   of the four source systems their stored credentials cover. Same set-or-not
+   semantics — a green mark means credentials are on file, never that data was
+   fetched. This is the person who can actually close a gap, so the panel
+   links straight to the vault. #}
+<div class="panel">
+    <div class="panel-head" style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+        <div><h3>Connected Systems</h3>
+            <div class="sub">The systems behind your evidence, connected by the
+                credentials you keep with us.</div></div>
+        <a class="btn btn-outline btn-sm" href="{{ url_for('client_credentials') }}">Manage credentials</a>
+    </div>
+    <div class="em-dbs" style="margin-bottom:0;">
+        {% for key, db in dbs.items() %}
+        {%- set conn = (connections or {}).get(key) %}
+        <div class="em-db-card">
+            <div class="t">{{ db.name }}</div>
+            <div class="f">{{ db.focus }}</div>
+            {% if conn %}
+            <div class="em-conn-line">
+                {% if conn.connected %}
+                <span class="em-conn ok">&#9679; Connected via {{ conn.panel }}{% if conn.system %} &mdash; {{ conn.system }}{% endif %}</span>
+                {% else %}
+                <span class="em-conn off">&#9675; Not connected &mdash; add {{ conn.panel|lower }} credentials</span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-head">
+        <div><h3>Value</h3><div class="sub">Across every case in your book.</div></div>
+    </div>
+    <table class="acct-tbl">
+        <tr><th>Total disputed</th><td class="money">{{ "%.2f"|format(c.totals.value) }}</td></tr>
+        <tr><th>Still at risk</th><td class="money">{{ "%.2f"|format(c.totals.at_risk) }}</td></tr>
+        <tr><th>Refunded</th><td>{{ c.totals.refunded }} case{{ '' if c.totals.refunded == 1 else 's' }}</td></tr>
+    </table>
+</div>
+
+<div class="panel">
+    <div class="panel-head">
+        <div><h3>Merchant Account</h3><div class="sub">On file with us. Ask your account manager to change anything here.</div></div>
+    </div>
+    <table class="acct-tbl">
+        {% for key, label in c.account_fields.items() %}
+        <tr>
+            <th>{{ label }}</th>
+            {% if c.account.get(key) %}
+            <td>{% if key == 'status' %}<span class="pill {{ 'ok' if c.account[key] == 'Active' else 'wait' }}">{{ c.account[key] }}</span>
+                {% else %}{{ c.account[key] }}{% endif %}</td>
+            {% else %}<td class="empty">&mdash;</td>{% endif %}
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if c.charts.has_data %}{{ charts.trend_js(c.charts) }}{% endif %}
+{% endblock %}

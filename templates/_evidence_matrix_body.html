@@ -1,0 +1,149 @@
+{#- The evidence-requirements matrix, shared by the manager, team-lead and
+    agent consoles the same way _repository_body.html is: three thin pages,
+    one body. Needs `matrix`, `dbs`, `families` — all three come from
+    _evidence_matrix_context() in app.py, transcribed from the management
+    workbook (see chargeback/engines/evidence_matrix.py for the audit trail).
+
+    Colour discipline: rose = primary evidence, slate = secondary,
+    emerald = fetched by the system, amber = collected manually. A row the
+    workbook left without a fetch method renders an em dash — the sheet does
+    not say, so neither does the page. -#}
+
+<div class="em-head">
+    <h2>Evidence Requirements</h2>
+    <p>What each dispute type needs before it can be represented: the required
+       information, its evidence tier, whether the system fetches it or an
+       analyst collects it, and which backend database holds it.</p>
+    {#- sec['items'], never sec.items: on a dict Jinja resolves .items to the
+        dict method before it tries the key. -#}
+    {%- set tot = namespace(n=0, p=0) %}
+    {%- for sec in matrix %}{% set tot.n = tot.n + sec['items']|length %}{% for it in sec['items'] if it.primary %}{% set tot.p = tot.p + 1 %}{% endfor %}{% endfor %}
+    <span class="scope-note">{{ icon('clipboard') }} {{ matrix|length }} reason codes &middot; {{ tot.n }} items &middot; {{ tot.p }} primary</span>
+</div>
+
+<div class="em-legend">
+    <span class="grp">Tier: <span class="badge rose">Primary</span> <span class="badge slate">Secondary</span></span>
+    <span class="grp">Fetched: <span class="badge emerald">System</span> <span class="badge amber">Manual</span> <span class="em-none">&mdash; not set</span></span>
+</div>
+
+{# The four source systems, as the workbook's legend names them. The last line
+   of each card is live: whether the merchant has supplied credentials for the
+   system that connects it (set-or-not from the credential store, never a
+   secret). This is the "API credentials enable connection" half of the
+   architecture — the ontology names the database, the credential connects it. #}
+<div class="em-dbs">
+    {% for key, db in dbs.items() %}
+    {%- set conn = (connections or {}).get(key) %}
+    <div class="em-db-card">
+        <div class="t">{{ db.name }}</div>
+        <div class="f">{{ db.focus }}</div>
+        <div class="h">{{ db.holds|join(' · ') }}</div>
+        {% if conn %}
+        <div class="em-conn-line">
+            {% if conn.connected %}
+            <span class="em-conn ok">&#9679; Connected via {{ conn.panel }}{% if conn.system %} &mdash; {{ conn.system }}{% endif %}</span>
+            {% else %}
+            <span class="em-conn off">&#9675; Connector: {{ conn.panel }} &mdash; no credentials on file</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+{% for sec in matrix %}
+<div class="panel">
+    <div class="panel-head em-ph">
+        <div>
+            <h3>#{{ sec.num }} &middot; {{ sec.labels|join(' / ') }}</h3>
+            {%- set p = sec['items']|selectattr('primary')|list|length %}
+            <div class="sub">{{ sec['items']|length }} required items &middot; {{ p }} primary</div>
+        </div>
+        <div class="em-fams">
+            {#- All four networks on the surface, not Visa with the rest in a
+                tooltip: the same dispute arrives as 13.1 on a Visa case and
+                4855 on a Mastercard one, and an analyst holding the Mastercard
+                code has to be able to find this section by sight. Visa leads
+                only because REASON_CODES is keyed by its numbering. -#}
+            {% for fam in sec.reason_families %}{% if families.get(fam) %}
+            {%- set nc = families[fam].network_codes %}
+            <div class="em-fam">
+                <span class="em-fam-t">{{ families[fam].title }}</span>
+                {% for net in ('Visa', 'Mastercard', 'Amex', 'Discover') %}{% if nc.get(net) %}<span class="em-net">{{ net }} {{ nc[net] }}</span>{% endif %}{% endfor %}
+            </div>
+            {% endif %}{% endfor %}
+        </div>
+    </div>
+
+    {% if sec.variants %}
+    {# The workbook splits this dispute type by where the item physically is.
+       The pills only ever narrow: default is every row, so the page is
+       complete with scripting off. #}
+    <div class="segmented" data-em-variants>
+        <button type="button" class="seg on" data-variant="">All scenarios</button>
+        {% for v in sec.variants %}
+        <button type="button" class="seg" data-variant="{{ v }}">{{ v }}</button>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="em-wrap">
+        <table class="em-table">
+            <thead>
+                <tr>
+                    <th>Required information</th>
+                    <th>Tier</th>
+                    <th>Fetched</th>
+                    <th>Sources</th>
+                    {% if sec.variants %}<th>Applies to</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for it in sec['items'] %}
+                {%- set applies = it.variants_for or sec.variants or [] %}
+                <tr{% if sec.variants %} data-variants="{{ applies|join('|') }}"{% endif %}>
+                    <td class="n">{{ it.name }}</td>
+                    <td>
+                        {% if it.primary %}<span class="badge rose">Primary</span>
+                        {% else %}<span class="badge slate">Secondary</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if it.method == 'system' %}<span class="badge emerald">System</span>
+                        {% elif it.method == 'manual' %}<span class="badge amber">Manual</span>
+                        {% else %}<span class="em-none">&mdash;</span>{% endif %}
+                    </td>
+                    <td>
+                        {% for s in it.sources %}<span class="em-db" title="{{ dbs[s].name }} &mdash; {{ dbs[s].focus }}">DB {{ s }}</span>{% endfor %}
+                        {% if not it.sources %}<span class="em-none">&mdash;</span>{% endif %}
+                    </td>
+                    {% if sec.variants %}
+                    <td class="em-applies">
+                        {% if applies|length == sec.variants|length %}All scenarios
+                        {% else %}{{ applies|join(' · ') }}{% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endfor %}
+
+<script>
+/* Scenario pills for the sections that carry variants. Narrowing only —
+   "All scenarios" is the default, so a broken script leaves a complete page. */
+document.querySelectorAll('[data-em-variants]').forEach(function (seg) {
+    seg.addEventListener('click', function (e) {
+        var btn = e.target.closest('.seg');
+        if (!btn) return;
+        seg.querySelectorAll('.seg').forEach(function (b) {
+            b.classList.toggle('on', b === btn);
+        });
+        var v = btn.getAttribute('data-variant');
+        seg.closest('.panel').querySelectorAll('tr[data-variants]').forEach(function (tr) {
+            tr.hidden = !!v && tr.getAttribute('data-variants').split('|').indexOf(v) === -1;
+        });
+    });
+});
+</script>

@@ -1,0 +1,200 @@
+{% extends "manager_base.html" %}
+{% import "_charts.html" as charts %}
+{% block title %}Root Cause Analysis - ChargeShield AI{% endblock %}
+
+{% block extra_css %}
+{{ charts.chart_css() }}
+<style>
+    /* The weakness table. Rates never travel without their counts, and a row
+       under the sample floor says so — eight losses is a lead, not a statistic. */
+    .rca-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; align-items: start; }
+    @media (max-width: 1100px) { .rca-grid { grid-template-columns: 1fr; } }
+    .rca-matrix { display: block; font-size: 11px; color: var(--muted-foreground); margin-top: 2px; }
+    .rca-lift { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .rca-lift.up { color: #c62828; }
+    .rca-lift.down { color: #2e7d32; }
+    .rca-thin {
+        display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
+        font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
+        background: var(--muted); color: var(--muted-foreground);
+    }
+    .rca-rate b { font-variant-numeric: tabular-nums; }
+    .rca-rate .vs { color: var(--muted-foreground); font-size: 11px; margin: 0 4px; }
+    .rca-unmeasured { color: var(--muted-foreground); font-size: 12px; }
+    .rca-insights { margin: 0; padding-left: 22px; }
+    .rca-insights li { font-size: 13.5px; color: var(--foreground); line-height: 1.65; margin-bottom: 8px; }
+    .rca-note {
+        background: var(--muted); border: 1px solid var(--border);
+        border-radius: var(--radius-lg); padding: 14px 16px; font-size: 13px;
+        color: var(--muted-foreground); line-height: 1.6;
+    }
+    .rca-ds {
+        font-size: 11px; font-weight: 600; color: var(--muted-foreground);
+        background: var(--muted); border: 1px solid var(--border);
+        border-radius: 999px; padding: 3px 12px; white-space: nowrap;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mgr-head">
+    <h2>Root Cause Analysis</h2>
+    <p>Why decided cases were lost, and where the losses concentrate &mdash; so the next
+       representment goes out stronger.</p>
+    <span class="scope-note">{{ icon('search') }} {{ rca.decided }} decided of {{ rca.total }} cases</span>
+    {% if dataset %}<span class="rca-ds">&#128451; {{ dataset }}</span>{% endif %}
+</div>
+
+{% if not rca.has_decisions %}
+{# The honest state, not an edge case: no sheet loaded today carries a
+   CaseOutcome column, and no agent action can produce a Won or Lost — only an
+   ingested ruling can. Explaining that beats a page of zeros. #}
+<div class="panel">
+    <div class="panel-head">
+        <div><h3>No decided cases yet</h3>
+            <div class="sub">All {{ rca.total }} cases are still at Decision Pending.</div></div>
+    </div>
+    <div class="rca-note">
+        Root cause analysis reads issuer rulings, and the current book carries none:
+        the loaded sheet has no <code>CaseOutcome</code> column, and no action inside the
+        platform can decide a case &mdash; a ruling is the issuer's to make. Load a case
+        sheet that carries <code>CaseOutcome</code>
+        (<code>Won</code> / <code>Lost</code> / <code>Not Fought</code>) through Data
+        Ingestion; this page fills in from the first decided case.
+    </div>
+</div>
+
+{% elif not rca.has_losses %}
+<div class="kpi-strip">
+    <div class="kpi"><div class="l">Decided</div><div class="v">{{ rca.decided }}</div><div class="hint">Won or lost — a concession is neither</div></div>
+    <div class="kpi tone-success"><div class="l">Won</div><div class="v">{{ rca.won }}</div><div class="hint">{{ rca.win_rate }}% win rate</div></div>
+    <div class="kpi tone-danger"><div class="l">Lost</div><div class="v">0</div><div class="hint">Nothing to analyse</div></div>
+</div>
+<div class="panel">
+    <div class="panel-head">
+        <div><h3>No losses recorded</h3>
+            <div class="sub">{{ rca.won }} win{{ '' if rca.won == 1 else 's' }}, zero losses.</div></div>
+    </div>
+    <div class="rca-note">
+        Every decided case so far was won, so there are no losses to take apart.
+        This page becomes useful the moment a ruling goes against a case.
+    </div>
+</div>
+
+{% else %}
+<div class="kpi-strip">
+    <div class="kpi"><div class="l">Decided</div><div class="v">{{ rca.decided }}</div><div class="hint">Won or lost — a concession is neither</div></div>
+    <div class="kpi tone-success"><div class="l">Won</div><div class="v">{{ rca.won }}</div><div class="hint">{{ charts.money(rca.won_amounts) }}</div></div>
+    <div class="kpi tone-danger"><div class="l">Lost</div><div class="v">{{ rca.lost }}</div><div class="hint">{{ charts.money(rca.lost_amounts) }}</div></div>
+    <div class="kpi tone-info"><div class="l">Win Rate</div><div class="v">{{ rca.win_rate }}%</div><div class="hint">Of decided cases</div></div>
+</div>
+
+<div class="rca-grid">
+    <div class="panel">
+        <div class="panel-head">
+            <div><h3>Why cases are lost</h3>
+                <div class="sub">Each weakness compared across the {{ rca.decided }} decided cases:
+                    the loss rate of cases that carry it, against those that do not.
+                    Rows under {{ rca.min_sample }} decided cases are marked &mdash; treat those as leads.</div></div>
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="rc-tbl">
+                <thead>
+                    <tr><th>Weakness</th><th>Lost / with</th><th>Loss rate: with vs without</th><th>Lift</th></tr>
+                </thead>
+                <tbody>
+                    {% for w in rca.weaknesses %}
+                    <tr>
+                        <td>
+                            {{ w.label }}
+                            {% if w.matrix %}<span class="rca-matrix">{{ icon('clipboard') }} {{ w.matrix }}</span>{% endif %}
+                        </td>
+                        {% if w.measurable %}
+                        <td>{{ w.lost_with }} / {{ w.decided_with }}{% if w.thin %}<span class="rca-thin">small sample</span>{% endif %}</td>
+                        <td class="rca-rate"><b>{{ w.loss_rate_with }}%</b><span class="vs">vs</span><b>{{ w.loss_rate_without }}%</b></td>
+                        <td><span class="rca-lift {{ 'up' if w.lift > 0 else ('down' if w.lift < 0 else '') }}">{{ '%+.1f'|format(w.lift) }} pp</span></td>
+                        {% else %}
+                        <td colspan="3" class="rca-unmeasured">No decided case carries this &mdash; nothing to compare yet.</td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="chart-card">
+        <h3>{{ icon('trending-up') }} Outcomes</h3>
+        <div class="chart-sub">All {{ rca.total }} cases by current state</div>
+        <div class="pie-wrap">
+            <div class="pie hole" style="background: conic-gradient({% for r in rca.statuses %}{{ r.color }} {{ r.start_deg }}deg {{ r.end_deg }}deg{{ ', ' if not loop.last }}{% endfor %});">
+                <div class="pie-hole-txt">
+                    <span class="ph-v">{{ rca.win_rate }}%</span>
+                    <span class="ph-l">Win rate</span>
+                </div>
+            </div>
+            <div class="pie-legend">
+                {% for r in rca.statuses %}
+                <div class="pl-item">
+                    <span class="pl-dot" style="background:{{ r.color }};"></span>
+                    <span class="pl-name">{{ r.name }}</span>
+                    <span class="pl-val">{{ r.count }} &middot; {{ r.pct }}%</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="panel" style="margin-top:16px;">
+    <div class="panel-head">
+        <div><h3>Actionable insights</h3>
+            <div class="sub">Read from the numbers above &mdash; every figure carries its count.</div></div>
+    </div>
+    <ol class="rca-insights">
+        {% for line in rca.insights %}<li>{{ line }}</li>{% endfor %}
+    </ol>
+</div>
+
+{# Loss breakdowns. Per-currency amounts via charts.money — never one summed
+   figure across IDR, NGN and USD. #}
+<div class="chart-grid-2" style="margin-top:16px;">
+    {% for key, title in (('family', 'Losses by dispute type'), ('network', 'Losses by card network')) %}
+    <div class="chart-card">
+        <h3>{{ icon('file-text' if key == 'family' else 'credit-card') }} {{ title }}</h3>
+        <div class="chart-sub">Decided cases only</div>
+        <table class="rc-tbl">
+            <thead><tr><th>{{ 'Dispute type' if key == 'family' else 'Network' }}</th><th>Lost / decided</th><th>Loss rate</th><th>Amount lost</th></tr></thead>
+            <tbody>
+                {% for r in rca.loss_by[key] %}
+                <tr>
+                    <td>{{ r.label }}</td>
+                    <td>{{ r.lost }} / {{ r.decided }}</td>
+                    <td>{{ r.loss_rate }}%</td>
+                    <td>{{ charts.money(r.amounts) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</div>
+<div class="chart-card" style="margin-top:16px;">
+    <h3>{{ icon('building') }} Losses by processor</h3>
+    <div class="chart-sub">Decided cases only</div>
+    <table class="rc-tbl">
+        <thead><tr><th>Processor</th><th>Lost / decided</th><th>Loss rate</th><th>Amount lost</th></tr></thead>
+        <tbody>
+            {% for r in rca.loss_by.processor %}
+            <tr>
+                <td>{{ r.label }}</td>
+                <td>{{ r.lost }} / {{ r.decided }}</td>
+                <td>{{ r.loss_rate }}%</td>
+                <td>{{ charts.money(r.amounts) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

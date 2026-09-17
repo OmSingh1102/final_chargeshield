@@ -1,0 +1,189 @@
+{% extends "manager_base.html" %}
+{% block title %}Operations - Management Console{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ops-tools { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+    .ops-tools .segmented { margin-bottom: 0; }
+    .ops-search {
+        margin-left: auto; min-width: 280px; flex: 0 1 340px;
+        padding: 9px 14px; border: 1px solid var(--line-strong); border-radius: 10px;
+        font-family: inherit; font-size: 13px; color: var(--ink); background: var(--surface, #fff);
+    }
+    .ops-search:focus { outline: none; border-color: var(--brand); }
+
+    .ops-count { font-size: 13px; font-weight: 800; color: var(--ink); margin-bottom: 10px; }
+    .ops-wrap { overflow-x: auto; }
+    table.ops { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    table.ops th {
+        text-align: left; padding: 10px 12px; font-size: 10.5px; font-weight: 800;
+        text-transform: uppercase; letter-spacing: .4px; color: var(--ink-soft);
+        border-bottom: 1px solid var(--line-strong); white-space: nowrap;
+    }
+    table.ops td { padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    table.ops tr.hidden { display: none; }
+    table.ops tbody tr:hover { background: var(--brand-wash); }
+    .ops-cid { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; color: var(--brand-dark); text-decoration: none; }
+    .ops-cid:hover { text-decoration: underline; }
+    .ops-amt { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+    .ops-amt .cur { font-size: 10.5px; font-weight: 700; color: var(--ink-soft); margin-right: 3px; }
+    .ops-rc { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; font-weight: 700;
+              border: 1px solid var(--line-strong); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+    .ops-age { white-space: nowrap; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+    /* Processing category — the two-bucket split the tabs filter on. */
+    .cat { display: inline-block; padding: 3px 10px; border-radius: 999px;
+           font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .cat.auto { background: #fff1e7; color: #c2410c; }
+    .cat.hitl { background: var(--surface-2, #f7efe9); color: var(--ink-soft-2, #7a6558); }
+
+    /* Missing evidence. Red for a source that returned nothing, amber for one
+       that returned some of what was asked. */
+    .miss { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+    .miss span { display: inline-block; padding: 2px 8px; border-radius: 5px;
+                 font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+    .miss .unavailable { background: #c62828; color: #fff; }
+    .miss .partial { background: #fff3e0; color: #b45309; border: 1px solid #f6c88a; }
+    .miss .more { color: var(--ink-soft); font-weight: 600; }
+    .miss-none { color: var(--ink-faint, #b0998a); }
+
+    .wf { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px;
+          font-weight: 700; white-space: nowrap; border: 1px solid transparent; }
+    .wf.human_review_required { background: #fff3e0; color: #b45309; border-color: #f6c88a; }
+    .wf.accept_recommended    { background: #fdecea; color: #c62828; border-color: #f3b6b0; }
+    .wf.rebuttal_generated    { background: #eaf6ec; color: #2e7d32; border-color: #b6dcbc; }
+    .wf.rebuttal_submitted    { background: #e8f1fb; color: #1a4f8a; border-color: #b3cde8; }
+    .wf.awaiting_evidence     { background: var(--surface-2, #f7efe9); color: var(--ink-soft-2, #7a6558); }
+    .wf.chargeback_accepted   { background: var(--surface-2, #f7efe9); color: var(--ink-soft-2, #7a6558); }
+    .wf.case_closed           { background: var(--surface-2, #f7efe9); color: var(--ink-soft-2, #7a6558); }
+
+    .ops-empty { padding: 28px 12px; text-align: center; color: var(--ink-soft); font-size: 13px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mgr-head">
+    <h2>Operations</h2>
+    <p>Single operational workspace for case queues, including Human in the Loop.</p>
+    {% if rows %}
+    <span class="scope-note">{{ icon('alert-circle') }} {{ rows|length }} case{{ '' if rows|length == 1 else 's' }} in the queue</span>
+    {% endif %}
+</div>
+
+{% if not rows %}
+{% include "_empty_state.html" %}
+{% else %}
+
+<div class="kpi-strip">
+    <div class="kpi"><div class="l">Total Cases</div><div class="v">{{ ml.total_cases }}</div><div class="hint">All cases in dataset</div></div>
+    <div class="kpi tone-success"><div class="l">Automatically Processed</div><div class="v">{{ ml.auto_processed }}</div><div class="hint">{{ ml.auto_rate_pct }}% automation rate</div></div>
+    <div class="kpi tone-warning"><div class="l">Human in the Loop</div><div class="v">{{ ml.human_in_loop }}</div><div class="hint">Requires manual review &middot; {{ ml.hitl_rate_pct }}% of total</div></div>
+</div>
+
+<div class="panel">
+    <div class="ops-tools">
+        {# Filtering is client-side, like Chargeback History: this is a plain
+           table, so there is nothing server-rendered that needs recomputing. #}
+        <div class="segmented" id="ops-tabs">
+            <button type="button" class="seg on" data-bucket="">All Cases <span class="n">{{ rows|length }}</span></button>
+            <button type="button" class="seg" data-bucket="auto">Automatically Processed <span class="n">{{ ml.auto_processed }}</span></button>
+            <button type="button" class="seg" data-bucket="hitl">Human in the Loop <span class="n">{{ ml.human_in_loop }}</span></button>
+        </div>
+        <input type="text" id="ops-search" class="ops-search" placeholder="Search by case ID, reason code, or processor" oninput="opsFilter()">
+    </div>
+
+    <div class="ops-count" id="ops-count">All Cases ({{ rows|length }})</div>
+
+    <div class="ops-wrap">
+        <table class="ops">
+            <thead>
+                <tr>
+                    <th>Case ID</th><th>Date</th><th>Network</th><th>Processor</th>
+                    <th style="text-align:right;">Amount</th><th>Reason</th>
+                    <th>Processing Category</th><th>Missing Evidence</th>
+                    <th>Age</th><th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="ops-body">
+                {% for r in rows %}
+                <tr data-bucket="{{ r.bucket }}"
+                    data-search="{{ (r.case_id ~ ' ' ~ r.reason_code ~ ' ' ~ r.processor ~ ' ' ~ r.network)|lower }}">
+                    <td><a class="ops-cid" href="{{ url_for('case_detail', case_id=r.case_id) }}">{{ r.case_id }}</a></td>
+                    <td class="ops-age">{{ r.date }}</td>
+                    <td>{{ r.network }}</td>
+                    <td>{{ r.processor }}</td>
+                    <td class="ops-amt"><span class="cur">{{ r.currency }}</span>{{ "{:,.2f}".format(r.amount) }}</td>
+                    <td><span class="ops-rc">{{ r.reason_code }}</span></td>
+                    <td>
+                        <span class="cat {{ r.bucket }}">{{ 'Auto Processed' if r.bucket == 'auto' else 'Human Review' }}</span>
+                        {# The third tier the two buckets flatten. Shown only
+                           where it says something the bucket does not — and
+                           only while the recommendation is still open. Keyed
+                           on the workflow status, which already encodes
+                           "accept-routed and nothing has happened yet"; the
+                           old routing_label guard matched a string the engine
+                           never emits, so this line never rendered. #}
+                        {% if r.status == 'accept_recommended' %}
+                        <div style="font-size:10.5px; color:var(--ink-soft); margin-top:3px;">Recommend accept</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if r.missing %}
+                        <div class="miss" title="{{ r.gap_count }} gap(s) across {{ r.missing|length }} source(s)">
+                            {% for s in r.missing[:2] %}<span class="{{ s.status }}">{{ s.name }}</span>{% endfor %}
+                            {% if r.missing|length > 2 %}<span class="more">+{{ r.missing|length - 2 }}</span>{% endif %}
+                        </div>
+                        {% else %}<span class="miss-none">&mdash;</span>{% endif %}
+                    </td>
+                    <td class="ops-age">{% if r.age != '' %}&#128337; {{ r.age }}d{% else %}&mdash;{% endif %}</td>
+                    <td><span class="wf {{ r.status }}">{{ r.status_label }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="ops-empty" id="ops-empty" style="display:none;">No cases match this filter.</div>
+
+    <div class="stub-note">
+        Missing evidence is what the collection run actually returned &mdash; each source
+        reports its own gaps, so an auto-processed case with everything collected shows nothing here.
+        Status is derived from the case's recorded decision, submission state and ML routing, in that order.
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if rows %}
+<script>
+var opsBucket = '';
+
+document.getElementById('ops-tabs').addEventListener('click', function (e) {
+    var btn = e.target.closest('.seg');
+    if (!btn) { return; }
+    opsBucket = btn.dataset.bucket;
+    this.querySelectorAll('.seg').forEach(function (b) { b.classList.toggle('on', b === btn); });
+    opsFilter();
+});
+
+function opsFilter() {
+    var q = document.getElementById('ops-search').value.trim().toLowerCase();
+    var rows = document.querySelectorAll('#ops-body tr');
+    var shown = 0;
+
+    rows.forEach(function (row) {
+        var ok = (!opsBucket || row.dataset.bucket === opsBucket)
+              && (!q || row.dataset.search.indexOf(q) !== -1);
+        row.classList.toggle('hidden', !ok);
+        if (ok) { shown++; }
+    });
+
+    var label = opsBucket === 'auto' ? 'Automatically Processed'
+              : opsBucket === 'hitl' ? 'Human in the Loop' : 'All Cases';
+    document.getElementById('ops-count').textContent = label + ' (' + shown + ')';
+    document.getElementById('ops-empty').style.display = shown ? 'none' : 'block';
+}
+</script>
+{% endif %}
+{% endblock %}

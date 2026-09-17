@@ -1,0 +1,50 @@
+{
+  "agent": {
+    "display_name": "Agent",
+    "email": "",
+    "theme": "default",
+    "pw_hash": "",
+    "pw_salt": "",
+    "pw_changed_at": "2026-08-26"
+  },
+  "agent2": {
+    "display_name": "Agent2",
+    "email": "",
+    "theme": "default",
+    "pw_hash": "",
+    "pw_salt": "",
+    "pw_changed_at": "2026-08-26"
+  },
+  "agent3": {
+    "display_name": "Agent3",
+    "email": "",
+    "theme": "default",
+    "pw_hash": "",
+    "pw_salt": "",
+    "pw_changed_at": "2026-08-26"
+  },
+  "admin": {
+    "display_name": "Admin",
+    "email": "",
+    "theme": "default",
+    "pw_hash": "",
+    "pw_salt": "",
+    "pw_changed_at": "2026-08-26"
+  },
+  "manager": {
+    "display_name": "Manager",
+    "email": "",
+    "theme": "default",
+    "pw_hash": "",
+    "pw_salt": "",
+    "pw_changed_at": "2026-08-26"
+  },
+  "acme": {
+    "display_name": "Acme",
+    "email": "",
+    "theme": "default",
+    "pw_hash": "",
+    "pw_salt": "",
+    "pw_changed_at": "2026-08-26"
+  }
+}

@@ -1,0 +1,27 @@
+{# The "nothing ingested yet" screen. Shared by every page that leads with
+   figures, because the app now starts with an empty book by design rather than
+   booting a sample sheet.
+
+   Callers may override the copy:
+       {% with title = "No cases assigned", lead = "…", cta = false %}
+         {% include "_empty_state.html" %}
+       {% endwith %}
+
+   `cta` defaults on but is suppressed for roles that cannot ingest — an agent
+   or a merchant sent to /ingest would only meet a 302 back to their own home. #}
+<div class="empty-state">
+    <div class="empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+    </div>
+    <h3>{{ title if title is defined else "No cases yet" }}</h3>
+    <p>{{ lead if lead is defined else
+          "Ingest a CSV of chargebacks to populate the platform. Nothing is loaded until you do." }}</p>
+    {% if (cta if cta is defined else True) and session.role in ("admin", "manager") %}
+    <a class="btn btn-primary" href="{{ url_for('ingest') }}">Ingest a CSV</a>
+    {% endif %}
+</div>

@@ -1,0 +1,1270 @@
+{% extends "base.html" %}
+{% block title %}Ingest Cases - ChargeShield AI{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ─── Layout & Screens ─── */
+.ingest-screen { display: none; }
+.ingest-screen.active { display: block; animation: fadeUp .45s ease; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+
+/* ─── Upload Zone ─── */
+/* ── Import chargebacks card ── */
+.imp { display: block; background: var(--surface, #fff); border: 1px solid var(--line-strong);
+       border-radius: 16px; padding: 20px 22px; box-shadow: var(--shadow); }
+.imp-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.imp-head h3 { font-size: 15px; font-weight: 800; color: var(--ink); }
+.imp-head p { font-size: 12.5px; color: var(--ink-soft); margin-top: 3px; }
+.imp-link { background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+            color: var(--brand); text-decoration: underline; }
+.imp-actions { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; }
+.imp-btn { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+           padding: 10px 18px; border-radius: 10px; font-family: inherit;
+           font-size: 13px; font-weight: 700; transition: background .15s, border-color .15s; }
+.imp-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;
+               stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.imp-btn.ghost { background: var(--surface, #fff); color: var(--ink);
+                 border: 1px solid var(--line-strong); }
+.imp-btn.ghost:hover { background: var(--surface-2, #f7efe9); border-color: var(--brand); }
+.imp-btn.primary { background: var(--brand); color: var(--on-accent, #fff); border: 1px solid var(--brand); }
+.imp-btn.primary:hover { background: var(--brand-dark); border-color: var(--brand-dark); }
+/* Destructive, so it reads as destructive — but quietly, since it sits beside
+   the upload control and is not the thing anyone came here to press. */
+.imp-btn.ghost.danger { color: #c62828; border-color: #f0cfca; }
+.imp-btn.ghost.danger:hover { background: #fff5f4; border-color: #c62828; }
+
+.imp-reset { display: flex; align-items: center; justify-content: space-between;
+             gap: 18px; flex-wrap: wrap; margin-top: 14px; padding: 14px 18px;
+             border: 1px solid var(--line, #f2e4da); border-radius: 12px;
+             background: var(--surface, #fff); }
+.imp-reset b { display: block; font-size: 13px; color: var(--ink); margin-bottom: 2px; }
+.imp-reset span { font-size: 12px; color: var(--ink-soft, #6d6259); line-height: 1.55; }
+.imp-reset form { margin: 0; }
+
+.imp-zone { border: 1.5px dashed var(--line-strong); border-radius: 12px;
+            padding: 34px 20px; text-align: center; cursor: pointer;
+            background: var(--surface, #fff); transition: border-color .15s, background .15s; }
+.imp-zone:hover, .imp-zone.over { border-color: var(--brand); background: var(--brand-tint); }
+/* Set on a successful pick. Semantic colours stay literal -- green means
+   "accepted" in every theme, so it is not a brand token. */
+.imp-zone.picked { border-color: #2e7d32; border-style: solid; background: #f2faf3; }
+.imp-cloud { width: 30px; height: 30px; fill: none; stroke: var(--ink-soft);
+             stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.imp-zone.picked .imp-cloud { stroke: #2e7d32; }
+.imp-main { font-size: 14.5px; font-weight: 700; color: var(--ink); margin-top: 10px; }
+.imp-main span { color: var(--brand); }
+.imp-hint { font-size: 12px; color: var(--ink-soft); margin-top: 5px; }
+.imp-picked { margin-top: 12px; font-size: 13px; font-weight: 700; color: #2e7d32; }
+
+/* .upload-zone, .uz-icon and .uz-text went with the drop zone they styled,
+   replaced by the .imp-* card above.
+   .or-div and .demo-btn went with the "Add Case Manually" button they styled.
+   Nothing else in the app used either. */
+
+/* ─── KPI Row ─── */
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 16px; margin-bottom: 24px; }
+.kpi-card {
+    background: var(--surface, #fff); border-radius: 12px; padding: 20px 18px; text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06); border-top: 4px solid var(--brand, #f4611a);
+}
+.kpi-card.green  { border-top-color: #2e7d32; }
+.kpi-card.orange { border-top-color: #e65100; }
+.kpi-card.purple { border-top-color: #b45309; }
+.kpi-card.red    { border-top-color: #c62828; }
+.kpi-card .kv { font-size: 30px; font-weight: 800; color: var(--brand-dark, #c2410c); }
+.kpi-card.green  .kv { color: #2e7d32; }
+.kpi-card.orange .kv { color: #e65100; }
+.kpi-card.purple .kv { color: #b45309; }
+.kpi-card.red    .kv { color: #c62828; }
+.kpi-card .kl { font-size: 11px; color: var(--c-888888, #888); font-weight: 600; text-transform: uppercase; margin-top: 6px; letter-spacing: .3px; }
+
+/* ─── Manager-style Sections ─── */
+.mgr-section {
+    background: var(--surface, #fff); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06);
+}
+.mgr-section h3 { font-size: 15px; font-weight: 700; margin: 0 0 14px; color: var(--ink-2, #2e1f17); }
+
+/* ─── Tabs ─── */
+.mgr-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+.mgr-tab {
+    padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    cursor: pointer; border: none; background: var(--c-e0e0e0, #e0e0e0); color: var(--c-555555, #555); transition: .2s;
+}
+.mgr-tab.active { background: var(--brand, #f4611a); color: var(--on-accent, #fff); }
+.mgr-tab.active-orange { background: #e65100; color: var(--on-accent, #fff); }
+
+/* ─── Tables ─── */
+.mgr-tbl { width: 100%; border-collapse: collapse; }
+.mgr-tbl th {
+    background: var(--ink-2, #2e1f17); color: var(--on-accent, #fff); padding: 10px 12px; text-align: left;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap;
+}
+.mgr-tbl td { padding: 9px 12px; border-bottom: 1px solid var(--c-eeeeee, #eee); font-size: 13px; }
+.mgr-tbl tr:hover { background: var(--c-fcf6f1, #fcf6f1); }
+.mgr-tbl tr.cb-highlight { background: #fff3e0; }
+.mgr-tbl tr.cb-highlight:hover { background: var(--c-ffe0b2, #ffe0b2); }
+
+/* ─── Breakdown Rows ─── */
+.breakdown-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+.breakdown-card { background: var(--surface, #fff); border-radius: 12px; padding: 18px 22px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+.breakdown-card h4 { font-size: 13px; font-weight: 700; color: var(--ink-2, #2e1f17); margin: 0 0 12px; text-transform: uppercase; letter-spacing: .3px; }
+.breakdown-row { display: flex; align-items: center; margin-bottom: 8px; }
+.breakdown-row .br-label { flex: 1; font-size: 13px; color: var(--c-555555, #555); }
+.breakdown-row .br-bar { flex: 2; height: 8px; background: var(--c-e0e0e0, #e0e0e0); border-radius: 4px; margin: 0 12px; overflow: hidden; }
+.breakdown-row .br-fill { height: 100%; border-radius: 4px; transition: width .6s; }
+.breakdown-row .br-val { font-size: 13px; font-weight: 700; color: var(--c-333333, #333); min-width: 50px; text-align: right; }
+
+/* ─── Status/Filter Dropdown ─── */
+.filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.filter-bar select {
+    padding: 7px 12px; border-radius: 6px; border: 1px solid var(--c-cccccc, #ccc); font-size: 13px;
+    background: var(--surface, #fff); cursor: pointer;
+}
+.filter-bar label { font-size: 12px; font-weight: 600; color: var(--c-888888, #888); text-transform: uppercase; }
+
+/* ─── Proceed Button ─── */
+.proceed-btn {
+    display: inline-block; padding: 13px 30px; border-radius: 8px; font-size: 14px;
+    font-weight: 700; cursor: pointer; border: none; color: var(--on-accent, #fff); background: var(--brand, #f4611a);
+    transition: background .2s; text-decoration: none;
+}
+.proceed-btn:hover { background: var(--brand-dark, #c2410c); }
+.proceed-btn.green { background: #2e7d32; }
+.proceed-btn.green:hover { background: #1b5e20; }
+
+/* ─── Gap Analysis ─── */
+.gap-section { margin-top: 24px; }
+.gap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.gap-card { background: var(--surface, #fff); border-radius: 10px; padding: 16px 20px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.gap-card h4 { font-size: 13px; font-weight: 700; margin: 0 0 10px; }
+.gap-card.missing h4 { color: #c62828; }
+.gap-card.available h4 { color: #2e7d32; }
+.gap-item { display: flex; align-items: center; padding: 5px 0; font-size: 13px; }
+.gap-item .gi-icon { margin-right: 8px; font-size: 14px; }
+.gap-item.miss { color: #c62828; }
+.gap-item.have { color: #2e7d32; }
+
+/* ─── Spinner Overlays ─── */
+.spinner-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255,255,255,.95); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; z-index: 9999;
+}
+.spinner {
+    width: 56px; height: 56px; border: 5px solid var(--c-e0e0e0, #e0e0e0);
+    border-top: 5px solid var(--brand, #f4611a); border-radius: 50%;
+    animation: spin .8s linear infinite; margin-bottom: 20px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-msg { font-size: 18px; font-weight: 700; color: var(--ink-2, #2e1f17); margin-bottom: 6px; }
+.spinner-sub { font-size: 13px; color: var(--c-888888, #888); }
+
+/* ─── Side Panel Overlay ─── */
+.side-panel-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,.35); z-index: 5000; display: none;
+}
+.side-panel-overlay.open { display: block; }
+
+/* ─── Side Panel (right) ─── */
+.side-panel {
+    position: fixed; top: 0; right: -600px; width: 560px; height: 100%;
+    background: var(--surface, #fff); z-index: 5001; overflow-y: auto; transition: right .35s ease;
+    box-shadow: -4px 0 24px rgba(0,0,0,.12); padding: 28px 32px;
+}
+.side-panel.open { right: 0; }
+.sp-close { position: absolute; top: 16px; right: 20px; font-size: 22px; cursor: pointer; color: var(--c-888888, #888); background: none; border: none; }
+.sp-close:hover { color: var(--c-333333, #333); }
+.sp-title { font-size: 18px; font-weight: 800; color: var(--ink-2, #2e1f17); margin-bottom: 20px; padding-right: 40px; }
+.sp-card {
+    background: var(--c-fcf6f1, #fcf6f1); border-radius: 10px; padding: 16px 18px; margin-bottom: 16px;
+    border-left: 4px solid var(--brand, #f4611a);
+}
+.sp-card.orange { border-left-color: #e65100; }
+.sp-card.green  { border-left-color: #2e7d32; }
+.sp-card.red    { border-left-color: #c62828; }
+.sp-card.purple { border-left-color: #b45309; }
+.sp-card h4 { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--c-888888, #888); margin: 0 0 8px; letter-spacing: .3px; }
+.sp-row { display: flex; margin-bottom: 5px; font-size: 13px; }
+.sp-row .sp-lbl { color: var(--c-888888, #888); min-width: 130px; }
+.sp-row .sp-val { font-weight: 600; color: var(--c-333333, #333); }
+
+/* ─── Wide Panel (rebuttal) ─── */
+.wide-panel {
+    position: fixed; top: 0; right: -1000px; width: 960px; max-width: 90vw; height: 100%;
+    background: var(--surface, #fff); z-index: 5002; overflow-y: auto; transition: right .35s ease;
+    box-shadow: -4px 0 30px rgba(0,0,0,.15); padding: 32px 36px;
+}
+.wide-panel.open { right: 0; }
+
+/* ─── Rebuttal Document Panel ─── */
+.doc-panel {
+    position: fixed; top: 0; right: -1000px; width: 960px; max-width: 90vw; height: 100%;
+    background: var(--c-f9f9f9, #f9f9f9); z-index: 5003; overflow-y: auto; transition: right .35s ease;
+    box-shadow: -4px 0 30px rgba(0,0,0,.15);
+}
+.doc-panel.open { right: 0; }
+.doc-page {
+    background: var(--surface, #fff); max-width: 760px; margin: 24px auto; padding: 48px 56px;
+    box-shadow: 0 2px 16px rgba(0,0,0,.08); border-radius: 4px; position: relative;
+    min-height: 700px;
+}
+.doc-watermark {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-35deg);
+    font-size: 80px; font-weight: 900; color: rgba(200,0,0,.06); pointer-events: none;
+    white-space: nowrap; letter-spacing: 8px;
+}
+.doc-header { text-align: center; border-bottom: 2px solid var(--ink-2, #2e1f17); padding-bottom: 16px; margin-bottom: 24px; }
+.doc-header h2 { font-size: 18px; font-weight: 800; color: var(--ink-2, #2e1f17); margin: 0; }
+.doc-header p { font-size: 12px; color: var(--c-888888, #888); margin: 4px 0 0; }
+.doc-section { margin-bottom: 20px; }
+.doc-section h3 { font-size: 13px; font-weight: 700; color: var(--brand, #f4611a); text-transform: uppercase; letter-spacing: .5px; margin: 0 0 8px; border-bottom: 1px solid var(--c-e0e0e0, #e0e0e0); padding-bottom: 4px; }
+.doc-row { display: flex; margin-bottom: 4px; font-size: 13px; }
+.doc-row .dl { color: var(--c-888888, #888); min-width: 160px; }
+.doc-row .dv { font-weight: 600; color: var(--c-333333, #333); }
+.doc-evidence-item { background: var(--c-fcf6f1, #fcf6f1); border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; font-size: 13px; }
+
+/* ─── Action Modal ─── */
+.action-modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,.45); z-index: 6000; display: none;
+    align-items: center; justify-content: center;
+}
+.action-modal-overlay.open { display: flex; }
+.action-modal {
+    background: var(--surface, #fff); border-radius: 14px; padding: 36px 40px; max-width: 480px;
+    width: 90%; text-align: center; box-shadow: 0 8px 40px rgba(0,0,0,.2);
+}
+.action-modal h3 { font-size: 20px; font-weight: 800; margin: 0 0 8px; }
+.action-modal p { font-size: 14px; color: var(--c-666666, #666); margin-bottom: 24px; }
+.action-modal .am-icon { font-size: 48px; margin-bottom: 12px; }
+
+/* ─── Timeline (rebuttal panel) ─── */
+.timeline { position: relative; padding-left: 24px; margin: 16px 0; }
+.timeline::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: var(--c-e0e0e0, #e0e0e0); }
+.tl-item { position: relative; margin-bottom: 14px; padding-left: 16px; }
+.tl-item::before {
+    content: ''; position: absolute; left: -20px; top: 4px;
+    width: 10px; height: 10px; border-radius: 50%; background: var(--brand, #f4611a); border: 2px solid var(--surface, #fff);
+}
+.tl-item.done::before { background: #2e7d32; }
+.tl-item.alert::before { background: #c62828; }
+.tl-date { font-size: 11px; color: var(--c-888888, #888); }
+.tl-text { font-size: 13px; font-weight: 600; color: var(--c-333333, #333); }
+
+/* ─── Processor View Simulation ─── */
+.proc-view {
+    background: var(--ink, #2b1b12); border-radius: 10px; padding: 20px 24px; color: var(--c-cccccc, #ccc); margin-top: 16px;
+}
+.proc-view h4 { color: var(--c-ffb98c, #ffb98c); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 12px; }
+.proc-row { display: flex; margin-bottom: 4px; font-size: 12px; }
+.proc-row .pl { color: var(--c-888888, #888); min-width: 140px; }
+.proc-row .pv { color: var(--c-e0e0e0, #e0e0e0); font-weight: 600; }
+
+/* ─── Inline Badges ─── */
+.badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+.badge-blue   { background: var(--brand-tint, #ffeadd); color: var(--brand, #f4611a); }
+.badge-green  { background: #e8f5e9; color: #2e7d32; }
+.badge-orange { background: #fff3e0; color: #e65100; }
+.badge-red    { background: #fce4ec; color: #c62828; }
+.badge-purple { background: #fef3e2; color: #b45309; }
+.badge-dark   { background: var(--ink-2, #2e1f17); color: var(--on-accent, #fff); }
+
+/* ─── Action Row (case panel) ─── */
+.sp-actions { display: flex; gap: 8px; margin-top: 16px; }
+.sp-action-btn {
+    flex: 1; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 700;
+    cursor: pointer; border: none; color: var(--on-accent, #fff); transition: .2s;
+}
+.sp-action-btn.accept   { background: #2e7d32; }
+.sp-action-btn.accept:hover { background: #1b5e20; }
+.sp-action-btn.rebuttal { background: var(--brand, #f4611a); }
+.sp-action-btn.rebuttal:hover { background: var(--brand-dark, #c2410c); }
+.sp-action-btn.escalate { background: #e65100; }
+.sp-action-btn.escalate:hover { background: var(--c-bf360c, #bf360c); }
+
+/* ─── Chargeback Detail Cards (new design) ─── */
+.cb-detail-card {
+    background: var(--surface, #fff); border-radius: 12px; padding: 20px 22px;
+    border: 1px solid var(--c-efe2d8, #efe2d8); border-left: 5px solid var(--brand, #f4611a);
+}
+.cb-detail-card.blue { border-left-color: var(--brand, #f4611a); }
+.cb-detail-card.orange { border-left-color: #e65100; }
+.cb-detail-card.processor {
+    background: var(--ink, #2b1b12); border: none; border-left: 5px solid var(--brand-dark, #c2410c);
+    border-radius: 12px; padding: 20px 22px; margin-bottom: 16px;
+}
+.cb-detail-card.processor h4 { color: var(--c-ffb98c, #ffb98c); }
+.cb-detail-card.processor .cb-lbl { color: var(--c-a89383, #a89383); }
+.cb-detail-card.processor .cb-val { color: var(--c-e0e0e0, #e0e0e0); }
+.cb-detail-card h4 {
+    font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px;
+    color: var(--ink-2, #2e1f17); margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--c-f8f1ea, #f8f1ea);
+}
+.cb-detail-card.processor h4 { border-bottom-color: var(--c-33231a, #33231a); }
+.cb-row { display: flex; justify-content: space-between; padding: 7px 0; font-size: 13px; }
+.cb-row + .cb-row { border-top: 1px solid var(--c-fbf6f2, #fbf6f2); }
+.cb-detail-card.processor .cb-row + .cb-row { border-top-color: var(--c-33231a, #33231a); }
+.cb-lbl { color: var(--c-94806f, #94806f); }
+.cb-val { color: var(--c-2a1d14, #2a1d14); font-weight: 600; text-align: right; }
+
+/* ─── Defense Submitted Panel ─── */
+.df-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--c-f0f0f0, #f0f0f0); }
+.df-lbl { font-size: 14px; color: var(--c-94806f, #94806f); }
+.df-val { font-size: 14px; color: var(--c-2a1d14, #2a1d14); font-weight: 600; text-align: right; }
+.df-doc-item { padding: 6px 0; font-size: 13px; color: var(--c-333333, #333); font-weight: 600; }
+.df-tl-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; position: relative; margin-left: 8px; }
+.df-tl-item + .df-tl-item { border-top: none; }
+.df-tl-item::before { content:''; position:absolute; left:5px; top:-8px; width:2px; height:100%; background:var(--c-c8e6c9, #c8e6c9); z-index:0; }
+.df-tl-item:first-child::before { top:50%; }
+.df-tl-item:last-child::before { height:50%; top:-8px; }
+.df-tl-dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; z-index:1; }
+.df-tl-item.done .df-tl-dot { background:#2e7d32; }
+.df-tl-item.pending .df-tl-dot { background:var(--c-e0e0e0, #e0e0e0); border:2px solid var(--c-bbbbbb, #bbb); width:8px; height:8px; }
+.df-tl-text { flex:1; font-size:13px; color:var(--c-333333, #333); font-weight:600; }
+.df-tl-item.pending .df-tl-text { color:var(--c-999999, #999); }
+.df-tl-tag { font-size:11px; color:var(--c-888888, #888); font-weight:600; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ #}
+{# SPINNER: CSV upload processing  (id kept - the submit handler targets it)   #}
+{# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ #}
+<div id="full-spinner" class="spinner-overlay" style="display:none;">
+    <div class="spinner"></div>
+    <div class="spinner-msg" id="full-spinner-msg">Loading Orders...</div>
+    <div class="spinner-sub" id="full-spinner-sub">Connecting to order management system</div>
+</div>
+
+{# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ #}
+{# SPINNER: Enrichment                                                         #}
+{# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ #}
+<div id="enrich-spinner" class="spinner-overlay" style="display:none;">
+    <div class="spinner" style="border-top-color:#2e7d32;"></div>
+    <div class="spinner-msg" id="enrich-spinner-msg">Enriching Cases...</div>
+    <div class="spinner-sub" id="enrich-spinner-sub">Querying internal databases</div>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{#  SCREEN 1 : Upload Portal                                                 #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div id="screen-upload" class="ingest-screen {% if mode == 'quick' %}active{% endif %}">
+    <div style="max-width:1100px; margin:28px auto;">
+        <form id="upload-form" class="imp" action="/ingest/upload" method="POST" enctype="multipart/form-data">
+            <div class="imp-head">
+                <div>
+                    <h3>Import chargebacks</h3>
+                    <p>Drag a CSV export from your acquirer or <button type="button" class="imp-link" onclick="opsPick()">click to browse</button>.</p>
+                </div>
+                <div class="imp-actions">
+                    <button type="button" class="imp-btn ghost" onclick="opsPick()">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        Browse
+                    </button>
+                    <button type="submit" class="imp-btn primary" id="upload-btn">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 16.6A5 5 0 0 0 18 7h-1.3A8 8 0 1 0 3 14.9"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg>
+                        Upload CSV
+                    </button>
+                </div>
+            </div>
+
+            <div class="imp-zone" id="upload-zone" onclick="opsPick()">
+                <svg class="imp-cloud" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 16.6A5 5 0 0 0 18 7h-1.3A8 8 0 1 0 3 14.9"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg>
+                <div class="imp-main">Drop CSV here or <span>click to browse</span></div>
+                <div class="imp-hint">Supported: .csv up to {{ max_upload_mb }} MB</div>
+                <div class="imp-picked" id="file-status" hidden>
+                    <span id="file-name"></span>
+                </div>
+                <input type="file" id="csv-file" name="chargebacks_csv" accept=".csv" hidden onchange="fileSelected(this)">
+            </div>
+        </form>
+
+        {# Starting a demo from a clean slate. An upload swaps the sheet but not
+           the work recorded against it, so without this the new book arrives
+           already carrying somebody's actions and rulings. Kept out of the
+           upload form so a stray Enter cannot fire it. #}
+        <div class="imp-reset">
+            <div>
+                <b>Start fresh</b>
+                <span>Clears agent actions, allocations, recorded issuer decisions and
+                    manually added cases, and unloads the current book. Uploaded CSV files
+                    stay on disk.</span>
+            </div>
+            <form action="{{ url_for('ingest_reset') }}" method="POST"
+                  onsubmit="return confirm('Clear the loaded book and every action recorded against it?\n\nThis cannot be undone. Uploaded CSV files are kept.');">
+                <button type="submit" class="imp-btn ghost danger">Reset data</button>
+            </form>
+        </div>
+
+        {# "Add Case Manually" sat here, and a Backend reference data panel
+           below it. Both are gone from the page by request.
+
+           The backend reference sheet still does its job — every ingested case
+           is joined against it on DisputeId — it is just no longer described or
+           replaceable here. It is swapped by putting a CSV in data/reference/
+           and pointing StateStore.set_reference_dataset() at it.
+
+           /add-case and /ingest/reference stay registered but unlinked, the
+           same way manager_client_tier already is. This page was the only route
+           to either. #}
+    </div>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{#  SCREEN 4 : Triage Dashboard                                              #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div id="screen-triage" class="ingest-screen {% if mode == 'quick' and d.cases %}{% endif %}">
+    {% set ai_cases = d.cases | selectattr('queue','equalto','ai') | list %}
+    {% set human_cases = d.cases | selectattr('queue','equalto','human') | list %}
+    {% set auto_rate = ((ai_cases | length) / (d.summary.total) * 100) | round(0) | int if d.summary.total > 0 else 0 %}
+
+    <h2 style="margin-bottom:18px;">&#9878; AI Triage Dashboard</h2>
+
+    {# --- KPI Row --- #}
+    <div class="kpi-row">
+        <div class="kpi-card">
+            <div class="kv">{{ d.summary.total }}</div>
+            <div class="kl">Total Cases Ingested</div>
+        </div>
+        <div class="kpi-card green">
+            <div class="kv">{{ ai_cases | length }}</div>
+            <div class="kl">Automated by AI</div>
+        </div>
+        <div class="kpi-card orange">
+            <div class="kv">{{ human_cases | length }}</div>
+            <div class="kl">Requires Human Review</div>
+        </div>
+        <div class="kpi-card purple">
+            <div class="kv">{{ auto_rate }}%</div>
+            <div class="kl">Auto-Represent Rate</div>
+        </div>
+    </div>
+
+    {# --- Queue Tabs --- #}
+    <div class="mgr-tabs" style="margin-bottom:16px;">
+        <button class="mgr-tab active" id="queue-tab-ai" onclick="switchQueue('ai', this)">&#9989; Auto Submissions ({{ ai_cases | length }})</button>
+        <button class="mgr-tab" id="queue-tab-human" onclick="switchQueue('human', this)">&#9888; HITL Cases ({{ human_cases | length }})</button>
+    </div>
+
+    {# --- Filter --- #}
+    <div class="filter-bar">
+        <label>Reason Code:</label>
+        <select id="triage-reason-filter" onchange="filterIngestTable(currentQueue)">
+            <option value="all">All Codes</option>
+            {# Deduplicated up front. Doing it inline here meant re-scanning
+               every earlier row for each row — unnoticeable at ten cases,
+               quadratic once a real book is ingested. #}
+            {% for rc in d.reason_codes %}
+            <option value="{{ rc.code }}">{{ rc.code }} - {{ rc.description }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    {# --- AI Queue Table --- #}
+    <div id="queue-ai" class="mgr-section">
+        <div style="overflow-x:auto;">
+            <table class="mgr-tbl" id="ai-queue-table">
+                <thead>
+                    <tr>
+                        <th>Case ID</th>
+                        <th>Reason Code</th>
+                        <th>Description</th>
+                        <th>Card</th>
+                        <th>Amount</th>
+                        <th>Product</th>
+                        <th>Customer</th>
+                        <th>AI Decision</th>
+                        <th>Status</th>
+                        <th>Review</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in ai_cases %}
+                    <tr class="triage-row" data-reason="{{ c.processor.chargeback_reason_code }}">
+                        <td style="font-family:monospace; font-size:11px; font-weight:600;">{{ c.processor.processor_case_id }}</td>
+                        <td><span class="badge badge-dark">{{ c.processor.chargeback_reason_code }}</span></td>
+                        <td style="font-size:12px;">{{ c.processor.reason_description }}</td>
+                        {# Was a two-way Visa/everything-else branch, so
+                           Mastercard, Amex and Discover shared one colour. #}
+                        <td><span class="badge {{ {'Visa': 'badge-blue', 'Mastercard': 'badge-orange', 'Amex': 'badge-green', 'Discover': 'badge-purple'}.get(c.processor.card_scheme, 'badge-orange') }}">{{ c.processor.card_scheme }}</span></td>
+                        <td style="font-weight:700;">${{ "{:,.2f}".format(c.processor.disputed_amount) }}</td>
+                        <td style="font-size:12px;">{{ c.product.product_name[:22] }}{% if c.product.product_name|length > 22 %}...{% endif %}</td>
+                        <td style="font-size:12px;">{{ c.order.customer_id }} ({{ c.order.order_history_count }} orders)</td>
+                        <td>
+                            <span class="badge badge-green">AUTO-REPRESENT</span>
+                            <div style="font-size:11px; color:#2e7d32; margin-top:3px;">{{ c.ai_score }}% confidence</div>
+                        </td>
+                        <td><span class="badge badge-green">Queued</span></td>
+                        <td>
+                            <button class="proceed-btn" style="padding:5px 12px; font-size:11px;" onclick="openRebuttalView({{ loop.index0 }})">View</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# --- Human Queue Table --- #}
+    <div id="queue-human" class="mgr-section" style="display:none;">
+        <div style="overflow-x:auto;">
+            <table class="mgr-tbl" id="human-queue-table">
+                <thead>
+                    <tr>
+                        <th>Case ID</th>
+                        <th>Reason Code</th>
+                        <th>Description</th>
+                        <th>Card</th>
+                        <th>Amount</th>
+                        <th>Product</th>
+                        <th>Why Human Needed</th>
+                        <th>Shipping</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in human_cases %}
+                    <tr class="triage-row" data-reason="{{ c.processor.chargeback_reason_code }}">
+                        <td style="font-family:monospace; font-size:11px; font-weight:600;">{{ c.processor.processor_case_id }}</td>
+                        <td><span class="badge badge-dark">{{ c.processor.chargeback_reason_code }}</span></td>
+                        <td style="font-size:12px;">{{ c.processor.reason_description }}</td>
+                        {# Was a two-way Visa/everything-else branch, so
+                           Mastercard, Amex and Discover shared one colour. #}
+                        <td><span class="badge {{ {'Visa': 'badge-blue', 'Mastercard': 'badge-orange', 'Amex': 'badge-green', 'Discover': 'badge-purple'}.get(c.processor.card_scheme, 'badge-orange') }}">{{ c.processor.card_scheme }}</span></td>
+                        <td style="font-weight:700; color:#c62828;">${{ "{:,.2f}".format(c.processor.disputed_amount) }}</td>
+                        <td style="font-size:12px;">{{ c.product.product_name[:22] }}{% if c.product.product_name|length > 22 %}...{% endif %}</td>
+                        <td style="font-size:12px; color:#e65100;">{{ c.ai_reason }}</td>
+                        <td>
+                            <span class="badge {% if c.order.shipping_status == 'Delivered' %}badge-green{% elif c.order.shipping_status == 'In Transit' %}badge-blue{% else %}badge-red{% endif %}">{{ c.order.shipping_status }}</span>
+                        </td>
+                        <td><span class="badge badge-orange">Pending Review</span></td>
+                        <td>
+                            <button class="proceed-btn" style="padding:5px 12px; font-size:11px; background:#e65100;" onclick="openCasePanel({{ loop.index0 }})">Review</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{#  SIDE PANEL : Case Review (Human Queue)                                    #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div id="case-panel-overlay" class="side-panel-overlay" onclick="closePanel()"></div>
+<div id="case-panel" class="side-panel">
+    <button class="sp-close" onclick="closePanel()">&times;</button>
+    <div class="sp-title" id="sp-title">Case Details</div>
+
+    {# Processor Data #}
+    <div class="sp-card">
+        <h4>Processor Data</h4>
+        <div class="sp-row"><span class="sp-lbl">Dispute Ref</span><span class="sp-val" id="sp-dispute-ref"></span></div>
+        <div class="sp-row"><span class="sp-lbl">Reason Code</span><span class="sp-val" id="sp-reason-code"></span></div>
+        <div class="sp-row"><span class="sp-lbl">Description</span><span class="sp-val" id="sp-reason-desc"></span></div>
+        <div class="sp-row"><span class="sp-lbl">Card Scheme</span><span class="sp-val" id="sp-card-scheme"></span></div>
+        <div class="sp-row"><span class="sp-lbl">Disputed Amount</span><span class="sp-val" id="sp-amount"></span></div>
+        <div class="sp-row"><span class="sp-lbl">Transaction ID</span><span class="sp-val" id="sp-tx-id"></span></div>
+    </div>
+
+    {# Internal Data #}
+    <div class="sp-card green">
+        <h4>Internal Data (Our DB)</h4>
+        <div class="sp-row"><span class="sp-lbl">Customer ID</span><span class="sp-val" id="sp-customer-id"></span></div>
+        <div class="sp-row"><span class="sp-lbl">Order History</span><span class="sp-val" id="sp-order-history"></span></div>
+        <div class="sp-row"><span class="sp-lbl">Lifetime Value</span><span class="sp-val" id="sp-ltv"></span></div>
+        <div class="sp-row"><span class="sp-lbl">Shipping Status</span><span class="sp-val" id="sp-shipping"></span></div>
+        <div class="sp-row"><span class="sp-lbl">Delivery Signed</span><span class="sp-val" id="sp-signed"></span></div>
+        <div class="sp-row"><span class="sp-lbl">AVS/CVV Match</span><span class="sp-val" id="sp-avs"></span></div>
+        <div class="sp-row"><span class="sp-lbl">Product</span><span class="sp-val" id="sp-product"></span></div>
+    </div>
+
+    {# Why Human Needed #}
+    <div class="sp-card orange">
+        <h4>Why Human Review Needed</h4>
+        <div class="sp-row"><span class="sp-lbl">AI Reason</span><span class="sp-val" id="sp-ai-reason" style="color:#e65100;"></span></div>
+        <div class="sp-row"><span class="sp-lbl">AI Confidence</span><span class="sp-val" id="sp-ai-score"></span></div>
+    </div>
+
+    {# Actions #}
+    <div class="sp-actions">
+        <button class="sp-action-btn accept" onclick="caseAction('accept')">&#9989; Accept Loss</button>
+        <button class="sp-action-btn rebuttal" onclick="caseAction('rebuttal')">&#128196; Build Rebuttal</button>
+        <button class="sp-action-btn escalate" onclick="caseAction('escalate')">&#9888; Escalate</button>
+    </div>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{#  WIDE PANEL : Rebuttal View                                               #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div id="rebuttal-panel-overlay" class="side-panel-overlay" onclick="closePanel()"></div>
+<div id="rebuttal-panel" class="wide-panel">
+    <button class="sp-close" onclick="closePanel()">&times;</button>
+
+    {# Header with case title + badge #}
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+        <h2 style="font-size:22px; font-weight:800; color:#2a1d14; margin:0;" id="rb-title">Chargeback Case</h2>
+        <span class="badge badge-green" id="rb-status-badge" style="font-size:13px; padding:6px 16px; border-radius:20px; white-space:nowrap;">Auto-Submitted</span>
+    </div>
+    <div style="color:#666; font-size:13px; margin-bottom:18px;" id="rb-subtitle"></div>
+
+    {# Action Buttons #}
+    <div style="display:flex; gap:8px; margin-bottom:22px; flex-wrap:wrap;">
+        <button class="proceed-btn" onclick="openRebuttalDoc(currentRebuttalIdx)" style="font-size:13px; padding:9px 18px;">&#128196; Review Packet</button>
+        <button class="proceed-btn" onclick="openRebuttalPDF()" style="font-size:13px; padding:9px 18px; background:#c62828;">&#128220; Rebuttal Document</button>
+        <button class="proceed-btn green" onclick="openDefensePanel(currentRebuttalIdx)" style="font-size:13px; padding:9px 18px;">&#9989; Defense Submitted</button>
+        <button class="proceed-btn" onclick="window.open('/reason-code/' + AI_CASES[currentRebuttalIdx].processor.chargeback_reason_code)" style="font-size:13px; padding:9px 18px; background:#555;">&#128209; Reason Code Guide</button>
+    </div>
+
+    {# Top row: Dispute Details + Card Details (blue borders) #}
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+        <div class="cb-detail-card blue">
+            <h4>&#9888; Dispute Details</h4>
+            <div class="cb-row"><span class="cb-lbl">Status</span><span class="cb-val" id="rb-status"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Dispute Reference</span><span class="cb-val" id="rb-case-id" style="font-weight:800;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Auto Defended</span><span class="cb-val" id="rb-auto-defended"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Reason</span><span class="cb-val" id="rb-reason-desc" style="font-weight:700;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Reason Code</span><span class="cb-val" id="rb-reason" style="font-weight:700;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Amount</span><span class="cb-val" id="rb-amount" style="font-weight:800;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Order Date</span><span class="cb-val" id="rb-order-date" style="font-weight:700;"></span></div>
+        </div>
+        <div class="cb-detail-card blue">
+            <h4>&#128179; Card Details</h4>
+            <div class="cb-row"><span class="cb-lbl">Card Holder</span><span class="cb-val" style="font-weight:700;">***REDACTED***</span></div>
+            <div class="cb-row"><span class="cb-lbl">Card Number</span><span class="cb-val" id="rb-card-number" style="font-weight:700;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Card Type</span><span class="cb-val" id="rb-card"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Issuer Country/Region</span><span class="cb-val" style="font-weight:700;">United States</span></div>
+            <div class="cb-row"><span class="cb-lbl">AVS/CVV</span><span class="cb-val" id="rb-avs" style="font-weight:700;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Customer IP</span><span class="cb-val" id="rb-ip" style="font-family:monospace; font-weight:600;"></span></div>
+        </div>
+    </div>
+
+    {# Middle row: Transaction Info + Shipping (orange borders) #}
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+        <div class="cb-detail-card orange">
+            <h4>&#128176; Transaction Information</h4>
+            <div class="cb-row"><span class="cb-lbl">Merchant</span><span class="cb-val" style="font-weight:800;">{{ merchant.company_name }}</span></div>
+            <div class="cb-row"><span class="cb-lbl">Order ID</span><span class="cb-val" id="rb-order-id" style="font-family:monospace; font-size:12px; font-weight:700;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Product</span><span class="cb-val" id="rb-product" style="font-weight:700;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Product Type</span><span class="cb-val" style="font-weight:700;">Physical</span></div>
+            <div class="cb-row"><span class="cb-lbl">Return Policy</span><span class="cb-val" id="rb-return-policy" style="font-weight:700;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Amount</span><span class="cb-val" id="rb-txn-amount" style="font-weight:800;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Descriptor Name</span><span class="cb-val" style="font-weight:700;">{{ merchant.dba_name }}</span></div>
+            <div class="cb-row"><span class="cb-lbl">Descriptor URL</span><span class="cb-val" style="font-weight:700;">{{ merchant.descriptor_url }}</span></div>
+        </div>
+        <div class="cb-detail-card orange">
+            <h4>&#128230; Shipping &amp; Delivery</h4>
+            <div class="cb-row"><span class="cb-lbl">Shipping Status</span><span class="cb-val" id="rb-ship-status"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Tracking URL</span><span class="cb-val" id="rb-tracking" style="word-break:break-all; font-size:11px;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Delivery Signature</span><span class="cb-val" id="rb-signed" style="font-weight:700;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Customer ID</span><span class="cb-val" id="rb-customer" style="font-weight:700;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Order History</span><span class="cb-val" id="rb-orders" style="font-weight:700;"></span></div>
+            <div class="cb-row"><span class="cb-lbl">Customer CLV</span><span class="cb-val" id="rb-ltv" style="font-weight:800;"></span></div>
+        </div>
+    </div>
+
+    {# Processor Portal View (dark card) #}
+    <div class="cb-detail-card processor">
+        <h4>&#128187; Processor Portal View (Simulated)</h4>
+        <div class="cb-row"><span class="cb-lbl">Dispute Reference</span><span class="cb-val" id="pv-ref"></span></div>
+        <div class="cb-row"><span class="cb-lbl">Network</span><span class="cb-val" id="pv-network" style="font-weight:800;"></span></div>
+        <div class="cb-row"><span class="cb-lbl">Reason Code</span><span class="cb-val" id="pv-reason"></span></div>
+        <div class="cb-row"><span class="cb-lbl">Disputed Amount</span><span class="cb-val" id="pv-amount" style="font-weight:800;"></span></div>
+        <div class="cb-row"><span class="cb-lbl">Response Deadline</span><span class="cb-val" style="color:#ff6b6b; font-weight:700;">14 days remaining</span></div>
+        <div class="cb-row"><span class="cb-lbl">Status</span><span class="cb-val" style="color:#ffd93d; font-weight:700;">Awaiting Merchant Response</span></div>
+    </div>
+
+    {# Timeline #}
+    <div style="margin-top:20px;">
+        <h4 style="font-size:13px; font-weight:700; color:#2e1f17; margin-bottom:10px;">Case Timeline</h4>
+        <div class="timeline">
+            <div class="tl-item done">
+                <div class="tl-date" id="tl-order-date"></div>
+                <div class="tl-text">Order Placed</div>
+            </div>
+            <div class="tl-item done">
+                <div class="tl-date" id="tl-ship-date"></div>
+                <div class="tl-text" id="tl-ship-text">Shipped &amp; Delivered</div>
+            </div>
+            <div class="tl-item alert">
+                <div class="tl-date">Recent</div>
+                <div class="tl-text">Dispute Filed by Cardholder</div>
+            </div>
+            <div class="tl-item">
+                <div class="tl-date">Now</div>
+                <div class="tl-text">AI Triage &amp; Defense Package Generated</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{#  DOC PANEL : 4-Page Rebuttal Document                                     #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div id="rebuttal-doc-overlay" class="side-panel-overlay" onclick="closePanel()"></div>
+<div id="rebuttal-doc-panel" class="doc-panel">
+    <button class="sp-close" onclick="closePanel()" style="z-index:10; color:#333;">&times;</button>
+
+    {# Page 1: Cover #}
+    <div class="doc-page">
+        <div class="doc-watermark">CONFIDENTIAL</div>
+        <div class="doc-header">
+            <h2>CHARGEBACK REBUTTAL PACKAGE</h2>
+            <p>ChargeShield AI &mdash; Automated Defense System</p>
+        </div>
+        <div class="doc-section">
+            <h3>Case Summary</h3>
+            <div class="doc-row"><span class="dl">Dispute Reference</span><span class="dv" id="doc-case-id"></span></div>
+            <div class="doc-row"><span class="dl">Reason Code</span><span class="dv" id="doc-reason"></span></div>
+            <div class="doc-row"><span class="dl">Card Scheme</span><span class="dv" id="doc-card"></span></div>
+            <div class="doc-row"><span class="dl">Disputed Amount</span><span class="dv" id="doc-amount"></span></div>
+            <div class="doc-row"><span class="dl">Transaction ID</span><span class="dv" id="doc-tx"></span></div>
+            <div class="doc-row"><span class="dl">Order Date</span><span class="dv" id="doc-order-date"></span></div>
+        </div>
+        <div class="doc-section">
+            <h3>Merchant Position</h3>
+            <p style="font-size:13px; color:#333; line-height:1.6;" id="doc-position">
+                The merchant disputes this chargeback and provides compelling evidence that the transaction was legitimate
+                and the goods/services were delivered as described.
+            </p>
+        </div>
+    </div>
+
+    {# Page 2: Evidence #}
+    <div class="doc-page">
+        <div class="doc-watermark">CONFIDENTIAL</div>
+        <div class="doc-header">
+            <h2>EVIDENCE PACKAGE</h2>
+            <p>Page 2 of 4</p>
+        </div>
+        <div class="doc-section">
+            <h3>Delivery Evidence</h3>
+            <div class="doc-evidence-item" id="doc-ev-ship"></div>
+            <div class="doc-evidence-item" id="doc-ev-tracking"></div>
+            <div class="doc-evidence-item" id="doc-ev-sig"></div>
+        </div>
+        <div class="doc-section">
+            <h3>Payment Authentication</h3>
+            <div class="doc-evidence-item" id="doc-ev-avs"></div>
+            <div class="doc-evidence-item" id="doc-ev-ip"></div>
+        </div>
+    </div>
+
+    {# Page 3: Customer Profile #}
+    <div class="doc-page">
+        <div class="doc-watermark">CONFIDENTIAL</div>
+        <div class="doc-header">
+            <h2>CUSTOMER PROFILE</h2>
+            <p>Page 3 of 4</p>
+        </div>
+        <div class="doc-section">
+            <h3>Customer Details</h3>
+            <div class="doc-row"><span class="dl">Customer ID</span><span class="dv" id="doc-cust-id"></span></div>
+            <div class="doc-row"><span class="dl">Order History</span><span class="dv" id="doc-cust-orders"></span></div>
+            <div class="doc-row"><span class="dl">Lifetime Value</span><span class="dv" id="doc-cust-ltv"></span></div>
+        </div>
+        <div class="doc-section">
+            <h3>Product Information</h3>
+            <div class="doc-row"><span class="dl">Product</span><span class="dv" id="doc-product"></span></div>
+            <div class="doc-row"><span class="dl">Product Type</span><span class="dv" id="doc-prod-type"></span></div>
+            <div class="doc-row"><span class="dl">Return Policy</span><span class="dv" id="doc-return-policy"></span></div>
+        </div>
+    </div>
+
+    {# Page 4: AI Analysis #}
+    <div class="doc-page">
+        <div class="doc-watermark">CONFIDENTIAL</div>
+        <div class="doc-header">
+            <h2>AI ANALYSIS &amp; RECOMMENDATION</h2>
+            <p>Page 4 of 4</p>
+        </div>
+        <div class="doc-section">
+            <h3>Triage Result</h3>
+            <div class="doc-row"><span class="dl">Queue</span><span class="dv" id="doc-queue"></span></div>
+            <div class="doc-row"><span class="dl">AI Confidence</span><span class="dv" id="doc-ai-score"></span></div>
+            <div class="doc-row"><span class="dl">Reasoning</span><span class="dv" id="doc-ai-reason"></span></div>
+        </div>
+        <div class="doc-section">
+            <h3>Recommendation</h3>
+            <p style="font-size:13px; color:#333; line-height:1.6;" id="doc-recommendation">
+                Based on the evidence collected, the AI recommends proceeding with representment.
+            </p>
+        </div>
+        <div style="margin-top:40px; padding-top:20px; border-top:2px solid #2e1f17; text-align:center;">
+            <p style="font-size:11px; color:#888;">Generated by ChargeShield AI &mdash; Automated Defense System</p>
+            <p style="font-size:11px; color:#888;">This document is confidential and intended for processor submission only.</p>
+        </div>
+    </div>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{#  ACTION MODAL (simple)                                                     #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div id="action-modal" class="action-modal-overlay">
+    <div class="action-modal">
+        <div class="am-icon" id="am-icon"></div>
+        <h3 id="am-title"></h3>
+        <p id="am-text"></p>
+        <button class="proceed-btn" onclick="closeActionModal()" id="am-btn">OK</button>
+    </div>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{#  DEFENSE SUBMITTED PANEL                                                   #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div id="defense-modal" class="action-modal-overlay">
+    <div style="background:#fff; border-radius:16px; max-width:440px; width:92%; max-height:90vh; overflow-y:auto; box-shadow:0 8px 40px rgba(0,0,0,.2);">
+
+        {# Green header banner #}
+        <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32); color:#fff; padding:28px 30px 22px; border-radius:16px 16px 0 0;">
+            <div style="width:40px; height:40px; background:rgba(255,255,255,.2); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:22px; margin-bottom:14px;">&#9989;</div>
+            <h3 style="margin:0 0 4px; font-size:22px; font-weight:800;">Defense Successfully Submitted</h3>
+            <p style="margin:0; font-size:13px; opacity:.85;" id="df-banner-sub">Evidence packet auto-submitted to processor via Visa network</p>
+        </div>
+
+        {# Case details rows #}
+        <div style="padding:24px 30px 0;">
+            <div class="df-row"><span class="df-lbl">Case ID</span><span class="df-val" id="df-case-id"></span></div>
+            <div class="df-row"><span class="df-lbl">Reason Code</span><span class="df-val" id="df-reason" style="font-weight:800;"></span></div>
+            <div class="df-row"><span class="df-lbl">Disputed Amount</span><span class="df-val" id="df-amount" style="font-weight:800;"></span></div>
+            <div class="df-row"><span class="df-lbl">Submission Method</span><span class="df-val" style="color:#2e7d32; font-weight:700;">AI Auto-Submitted</span></div>
+            <div class="df-row"><span class="df-lbl">Submitted To</span><span class="df-val" id="df-network" style="font-weight:700;"></span></div>
+            <div class="df-row"><span class="df-lbl">Confidence Score</span><span class="df-val" id="df-confidence" style="color:#2e7d32; font-weight:800;"></span></div>
+            <div class="df-row"><span class="df-lbl">Submission Time</span><span class="df-val" id="df-time" style="font-weight:700;"></span></div>
+        </div>
+
+        {# Documents included #}
+        <div style="margin:20px 30px; background:#f0faf0; border:1px solid #c8e6c9; border-radius:10px; padding:16px 18px;">
+            <h4 style="margin:0 0 12px; font-size:14px; font-weight:800; color:#2e7d32;">Documents Included in Defense Packet</h4>
+            <div class="df-doc-item">&#9989; Rebuttal Letter &amp; Executive Defense Statement</div>
+            <div class="df-doc-item">&#9989; AVS/CVV Authentication Log</div>
+            <div class="df-doc-item">&#9989; Proof of Delivery / Carrier Tracking</div>
+            <div class="df-doc-item">&#9989; Customer &amp; Transaction Metadata</div>
+            <div class="df-doc-item">&#9989; Settlement Log &amp; ARN Reference</div>
+        </div>
+
+        {# Submission Timeline #}
+        <div style="padding:0 30px 8px;">
+            <h4 style="margin:0 0 12px; font-size:14px; font-weight:800; color:#2e1f17;">Submission Timeline</h4>
+            <div class="df-tl-item done"><span class="df-tl-dot"></span><span class="df-tl-text">Evidence packet compiled</span><span class="df-tl-tag">Automated</span></div>
+            <div class="df-tl-item done"><span class="df-tl-dot"></span><span class="df-tl-text">Defense submitted to processor</span><span class="df-tl-tag">Automated</span></div>
+            <div class="df-tl-item done"><span class="df-tl-dot"></span><span class="df-tl-text">Processor acknowledged receipt</span><span class="df-tl-tag">Confirmed</span></div>
+            <div class="df-tl-item pending"><span class="df-tl-dot"></span><span class="df-tl-text">Awaiting issuer review</span><span class="df-tl-tag">Pending</span></div>
+        </div>
+
+        {# Close button #}
+        <div style="padding:16px 30px 24px; text-align:center;">
+            <button class="proceed-btn green" onclick="closeDefenseModal()" style="width:100%; padding:12px;">Close</button>
+        </div>
+    </div>
+</div>
+
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{#  JAVASCRIPT                                                                #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<script>
+/* ─── Data from Jinja ─── */
+var CASES_DATA = {{ d.cases | tojson }};
+var AI_CASES = CASES_DATA.filter(function(c){ return c.queue === 'ai'; });
+var HUMAN_CASES = CASES_DATA.filter(function(c){ return c.queue === 'human'; });
+var currentQueue = 'ai';
+var currentRebuttalIdx = 0;
+var currentHumanIdx = 0;
+
+/* ─── Show Screen ─── */
+function showScreen(id) {
+    document.querySelectorAll('.ingest-screen').forEach(function(s){ s.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+    window.scrollTo(0, 0);
+}
+
+/* ─── Spinner Runner ─── */
+function runSpinner(msgEl, subEl, msgs, onDone) {
+    var i = 0;
+    msgEl.textContent = msgs[0][0];
+    subEl.textContent = msgs[0][1];
+    var interval = setInterval(function(){
+        i++;
+        if (i >= msgs.length) {
+            clearInterval(interval);
+            if (onDone) onDone();
+            return;
+        }
+        msgEl.textContent = msgs[i][0];
+        subEl.textContent = msgs[i][1];
+    }, 600);
+}
+
+/* ─── Queue Tab Switch ─── */
+function switchQueue(queue, tab) {
+    currentQueue = queue;
+    document.getElementById('queue-tab-ai').classList.remove('active', 'active-orange');
+    document.getElementById('queue-tab-human').classList.remove('active', 'active-orange');
+    if (queue === 'ai') {
+        document.getElementById('queue-tab-ai').classList.add('active');
+        document.getElementById('queue-ai').style.display = '';
+        document.getElementById('queue-human').style.display = 'none';
+    } else {
+        document.getElementById('queue-tab-human').classList.add('active-orange');
+        document.getElementById('queue-ai').style.display = 'none';
+        document.getElementById('queue-human').style.display = '';
+    }
+    filterIngestTable(queue);
+}
+
+/* ─── Triage Table Filter ─── */
+function filterIngestTable(queue) {
+    var filterVal = document.getElementById('triage-reason-filter').value;
+    var tableId = queue === 'ai' ? 'ai-queue-table' : 'human-queue-table';
+    var rows = document.querySelectorAll('#' + tableId + ' .triage-row');
+    rows.forEach(function(row){
+        if (filterVal === 'all') {
+            row.style.display = '';
+        } else {
+            row.style.display = row.getAttribute('data-reason') === filterVal ? '' : 'none';
+        }
+    });
+}
+
+/* ─── Open Case Panel (Human Review) ─── */
+function openCasePanel(idx) {
+    currentHumanIdx = idx;
+    var c = HUMAN_CASES[idx];
+    if (!c) return;
+
+    document.getElementById('sp-title').textContent = 'Case: ' + c.processor.processor_case_id;
+    document.getElementById('sp-dispute-ref').textContent = c.processor.processor_case_id;
+    document.getElementById('sp-reason-code').textContent = c.processor.chargeback_reason_code;
+    document.getElementById('sp-reason-desc').textContent = c.processor.reason_description;
+    document.getElementById('sp-card-scheme').textContent = c.processor.card_scheme;
+    document.getElementById('sp-amount').textContent = '$' + c.processor.disputed_amount.toFixed(2);
+    document.getElementById('sp-tx-id').textContent = c.processor.transaction_id;
+
+    document.getElementById('sp-customer-id').textContent = c.order.customer_id;
+    document.getElementById('sp-order-history').textContent = c.order.order_history_count + ' orders';
+    document.getElementById('sp-ltv').textContent = '$' + c.order.customer_lifetime_value.toFixed(2);
+    document.getElementById('sp-shipping').textContent = c.order.shipping_status;
+    document.getElementById('sp-signed').textContent = c.order.delivery_signature_present ? 'Yes - ' + (c.order.delivery_signed_at || '') : 'No';
+    document.getElementById('sp-avs').textContent = c.order.avs_cvv_match_status;
+    document.getElementById('sp-product').textContent = c.product.product_name;
+
+    document.getElementById('sp-ai-reason').textContent = c.ai_reason;
+    document.getElementById('sp-ai-score').textContent = c.ai_score + '%';
+
+    document.getElementById('case-panel-overlay').classList.add('open');
+    document.getElementById('case-panel').classList.add('open');
+}
+
+/* ─── Close All Panels ─── */
+function closePanel() {
+    document.querySelectorAll('.side-panel-overlay').forEach(function(o){ o.classList.remove('open'); });
+    document.querySelectorAll('.side-panel, .wide-panel, .doc-panel').forEach(function(p){ p.classList.remove('open'); });
+}
+
+/* ─── Open Rebuttal View (AI Queue) ─── */
+function openRebuttalView(idx) {
+    currentRebuttalIdx = idx;
+    var c = AI_CASES[idx];
+    if (!c) return;
+
+    var isAuto = c.queue === 'ai';
+    document.getElementById('rb-title').textContent = 'Chargeback Case: ' + c.processor.processor_case_id;
+    document.getElementById('rb-subtitle').textContent = c.processor.reason_description + ' | Reason Code ' +
+        c.processor.chargeback_reason_code + ' - ' + c.processor.reason_description;
+    var statusBadge = document.getElementById('rb-status-badge');
+    statusBadge.textContent = isAuto ? 'Auto-Submitted' : 'Pending Review';
+    statusBadge.className = 'badge ' + (isAuto ? 'badge-green' : 'badge-orange');
+    statusBadge.style.cssText = 'font-size:13px; padding:6px 16px; border-radius:20px; white-space:nowrap;';
+
+    // Dispute Details card
+    document.getElementById('rb-status').innerHTML = '<span style="background:' + (isAuto ? '#e8f5e9; color:#2e7d32' : '#fff3e0; color:#e65100') +
+        '; padding:2px 10px; border-radius:4px; font-size:12px; font-weight:700;">' + (isAuto ? 'Auto-Submitted' : 'Pending Review') + '</span>';
+    document.getElementById('rb-case-id').textContent = c.processor.processor_case_id;
+    document.getElementById('rb-auto-defended').textContent = isAuto ? 'Yes' : 'No';
+    document.getElementById('rb-reason-desc').textContent = c.processor.reason_description;
+    document.getElementById('rb-reason').textContent = c.processor.chargeback_reason_code;
+    document.getElementById('rb-amount').textContent = 'USD ' + c.processor.disputed_amount.toFixed(2);
+    document.getElementById('rb-order-date').textContent = c.order.order_date;
+
+    // Card Details card
+    document.getElementById('rb-card-number').textContent = '****' + (c.order.customer_id || '').slice(-4);
+    document.getElementById('rb-card').innerHTML = '<span style="background:#1a237e; color:#fff; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:700;">' +
+        c.processor.card_scheme.toUpperCase() + '</span> ' + c.processor.card_scheme;
+    document.getElementById('rb-avs').textContent = c.order.avs_cvv_match_status;
+    document.getElementById('rb-ip').textContent = c.order.customer_ip_address;
+
+    // Transaction Information card
+    document.getElementById('rb-order-id').textContent = c.processor.transaction_id;
+    document.getElementById('rb-product').textContent = c.product.product_name;
+    document.getElementById('rb-return-policy').textContent = c.product.return_policy_days + ' days';
+    document.getElementById('rb-txn-amount').textContent = 'USD ' + c.processor.disputed_amount.toFixed(2);
+
+    // Shipping & Delivery card
+    document.getElementById('rb-ship-status').innerHTML = '<span style="background:' +
+        (c.order.shipping_status === 'Delivered' ? '#e8f5e9; color:#2e7d32' : '#fff3e0; color:#e65100') +
+        '; padding:2px 10px; border-radius:4px; font-size:12px; font-weight:700;">' + c.order.shipping_status + '</span>';
+    document.getElementById('rb-tracking').textContent = c.order.carrier_tracking_url || 'N/A';
+    document.getElementById('rb-signed').textContent = c.order.delivery_signature_present ?
+        'Yes - ' + (c.order.delivery_signed_at || '') : 'No';
+    document.getElementById('rb-customer').textContent = c.order.customer_id;
+    document.getElementById('rb-orders').textContent = c.order.order_history_count + ' orders';
+    document.getElementById('rb-ltv').textContent = '$' + c.order.customer_lifetime_value.toFixed(2);
+
+    // Processor view
+    document.getElementById('pv-ref').textContent = c.processor.processor_case_id;
+    document.getElementById('pv-network').textContent = c.processor.card_scheme;
+    document.getElementById('pv-reason').textContent = c.processor.chargeback_reason_code + ' - ' + c.processor.reason_description;
+    document.getElementById('pv-amount').textContent = '$' + c.processor.disputed_amount.toFixed(2);
+
+    // Timeline
+    document.getElementById('tl-order-date').textContent = c.order.order_date;
+    if (c.order.delivery_signed_at) {
+        document.getElementById('tl-ship-date').textContent = c.order.delivery_signed_at;
+        document.getElementById('tl-ship-text').textContent = 'Delivered & Signed';
+    } else {
+        document.getElementById('tl-ship-date').textContent = '';
+        document.getElementById('tl-ship-text').textContent = 'Shipping: ' + c.order.shipping_status;
+    }
+
+    document.getElementById('rebuttal-panel-overlay').classList.add('open');
+    document.getElementById('rebuttal-panel').classList.add('open');
+}
+
+/* ─── Open Rebuttal Document ─── */
+function openRebuttalDoc(idx) {
+    var c = AI_CASES[idx] || HUMAN_CASES[idx];
+    if (!c) return;
+
+    document.getElementById('doc-case-id').textContent = c.processor.processor_case_id;
+    document.getElementById('doc-reason').textContent = c.processor.chargeback_reason_code + ' - ' + c.processor.reason_description;
+    document.getElementById('doc-card').textContent = c.processor.card_scheme;
+    document.getElementById('doc-amount').textContent = '$' + c.processor.disputed_amount.toFixed(2);
+    document.getElementById('doc-tx').textContent = c.processor.transaction_id;
+    document.getElementById('doc-order-date').textContent = c.order.order_date;
+
+    document.getElementById('doc-ev-ship').innerHTML = '<strong>Shipping Status:</strong> ' + c.order.shipping_status +
+        (c.order.delivery_signature_present ? ' (Signature on file)' : '');
+    document.getElementById('doc-ev-tracking').innerHTML = '<strong>Tracking:</strong> ' +
+        (c.order.carrier_tracking_url ? '<a href="' + c.order.carrier_tracking_url + '" target="_blank" style="color:#f4611a;">' + c.order.carrier_tracking_url + '</a>' : 'N/A');
+    document.getElementById('doc-ev-sig').innerHTML = '<strong>Delivery Signature:</strong> ' +
+        (c.order.delivery_signature_present ? 'Yes - Signed at ' + (c.order.delivery_signed_at || 'N/A') : 'No signature on file');
+
+    document.getElementById('doc-ev-avs').innerHTML = '<strong>AVS/CVV Verification:</strong> ' + c.order.avs_cvv_match_status;
+    document.getElementById('doc-ev-ip').innerHTML = '<strong>Customer IP:</strong> ' + c.order.customer_ip_address;
+
+    document.getElementById('doc-cust-id').textContent = c.order.customer_id;
+    document.getElementById('doc-cust-orders').textContent = c.order.order_history_count + ' orders';
+    document.getElementById('doc-cust-ltv').textContent = '$' + c.order.customer_lifetime_value.toFixed(2);
+
+    document.getElementById('doc-product').textContent = c.product.product_name;
+    document.getElementById('doc-prod-type').textContent = c.product.product_type;
+    document.getElementById('doc-return-policy').textContent = c.product.return_policy_days + ' days';
+
+    document.getElementById('doc-queue').textContent = c.queue === 'ai' ? 'Auto-Represent' : 'Human Review';
+    document.getElementById('doc-ai-score').textContent = c.ai_score + '%';
+    document.getElementById('doc-ai-reason').textContent = c.ai_reason;
+
+    var recText = c.queue === 'ai'
+        ? 'Based on strong delivery evidence, verified payment authentication, and positive customer history, the AI system recommends proceeding with automated representment. Confidence level: ' + c.ai_score + '%.'
+        : 'This case requires human review before a defense strategy can be determined. The AI system flagged: ' + c.ai_reason;
+    document.getElementById('doc-recommendation').textContent = recText;
+
+    document.getElementById('rebuttal-doc-overlay').classList.add('open');
+    document.getElementById('rebuttal-doc-panel').classList.add('open');
+}
+
+/* ─── Open Rebuttal as PDF (print dialog) ─── */
+function openRebuttalPDF() {
+    var c = AI_CASES[currentRebuttalIdx];
+    if (!c) return;
+    window.open('/rebuttal/' + encodeURIComponent(c.processor.processor_case_id) + '?print=1', '_blank');
+}
+
+/* ─── Open Defense Panel (submit confirmation) ─── */
+function openDefensePanel(idx) {
+    var c = AI_CASES[idx];
+    if (!c) return;
+
+    var network = c.processor.card_scheme;
+    document.getElementById('df-banner-sub').textContent = 'Evidence packet auto-submitted to processor via ' + network + ' network';
+    document.getElementById('df-case-id').textContent = c.processor.processor_case_id;
+    document.getElementById('df-reason').textContent = c.processor.chargeback_reason_code + ' - ' + c.processor.reason_description;
+    document.getElementById('df-amount').textContent = '$' + c.processor.disputed_amount.toFixed(2);
+    document.getElementById('df-network').textContent = network + ' Network';
+    document.getElementById('df-confidence').textContent = c.ai_score + '%';
+
+    var now = new Date();
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var h = now.getHours(); var ampm = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+    var min = now.getMinutes() < 10 ? '0' + now.getMinutes() : now.getMinutes();
+    document.getElementById('df-time').textContent = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear() + ', ' + h + ':' + min + ' ' + ampm;
+
+    document.getElementById('defense-modal').classList.add('open');
+}
+
+function closeDefenseModal() {
+    document.getElementById('defense-modal').classList.remove('open');
+}
+
+function showCaseActionModal(icon, title, text) {
+    document.getElementById('am-icon').textContent = icon;
+    document.getElementById('am-title').textContent = title;
+    document.getElementById('am-text').textContent = text;
+    document.getElementById('am-btn').textContent = 'OK';
+    closePanel();
+    document.getElementById('action-modal').classList.add('open');
+}
+
+/* ─── Case Action (accept/rebuttal/escalate) ─── */
+function caseAction(action) {
+    /* Accept is real: it concedes the case through the same route as the
+       Chargeback page's Accept button, so every console sees it. It used to
+       be a modal claiming a loss was accepted while nothing was written.
+       Rebuttal/escalate below remain demo walkthrough copy. */
+    if (action === 'accept') {
+        var cs = HUMAN_CASES[currentHumanIdx];
+        if (!cs || !cs.case_id) { return; }
+        var sure = window.confirm('Concede ' + cs.case_id + '?\n\n' +
+            'The chargeback is accepted: the disputed amount is refunded and ' +
+            'no rebuttal will be filed.');
+        if (!sure) { return; }
+        fetch('/case/' + encodeURIComponent(cs.case_id) + '/accept', {method: 'POST'})
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (j) {
+                if (j.status === 'ok') {
+                    showCaseActionModal('✅', 'Loss Accepted',
+                        'Case ' + cs.case_id + ' has been conceded. The outcome is ' +
+                        'recorded as Refunded on every console, and nothing will ' +
+                        'be filed with the network.');
+                } else {
+                    showCaseActionModal('⚠️', 'Not Accepted',
+                        j.error || 'The case could not be conceded.');
+                }
+            })
+            .catch(function () {
+                showCaseActionModal('⚠️', 'Not Accepted',
+                    'The case could not be conceded.');
+            });
+        return;
+    }
+    var icons = { accept: '\u2705', rebuttal: '\uD83D\uDCC4', escalate: '\u26A0\uFE0F' };
+    var titles = { accept: 'Loss Accepted', rebuttal: 'Rebuttal Initiated', escalate: 'Case Escalated' };
+    var texts = {
+        accept: 'This chargeback has been accepted. The disputed amount will not be contested.',
+        rebuttal: 'A rebuttal package is being assembled with all available evidence for submission.',
+        escalate: 'This case has been escalated to the senior disputes team for manual investigation.'
+    };
+    document.getElementById('am-icon').textContent = icons[action] || '';
+    document.getElementById('am-title').textContent = titles[action] || '';
+    document.getElementById('am-text').textContent = texts[action] || '';
+    document.getElementById('am-btn').textContent = 'OK';
+    closePanel();
+    document.getElementById('action-modal').classList.add('open');
+}
+
+/* ─── Close Action Modal ─── */
+function closeActionModal() {
+    document.getElementById('action-modal').classList.remove('open');
+}
+
+/* ─── Enrichment + Triage spinner transition (full mode) ─── */
+function startEnrichAndTriage() {
+    var spinner = document.getElementById('enrich-spinner');
+    var msgEl = document.getElementById('enrich-spinner-msg');
+    var subEl = document.getElementById('enrich-spinner-sub');
+    spinner.style.display = 'flex';
+
+    var msgs = [
+        ['Enriching Cases...', 'Querying Order Management System'],
+        ['Matching Orders...', 'Linking chargebacks to order records'],
+        ['Pulling Shipping Data...', 'Fetching carrier tracking & delivery proof'],
+        ['Checking Payment Auth...', 'Verifying AVS/CVV and 3D Secure status'],
+        ['Loading Customer Profiles...', 'Aggregating order history & lifetime value'],
+        ['Running AI Triage...', 'Classifying cases into auto vs human queues'],
+        ['Building Defense Packages...', 'Assembling evidence for each case'],
+        ['Triage Complete!', 'Routing cases to appropriate queues']
+    ];
+
+    runSpinner(msgEl, subEl, msgs, function(){
+        setTimeout(function(){
+            spinner.style.display = 'none';
+            showScreen('screen-triage');
+        }, 400);
+    });
+}
+
+
+/* ─── CSV Upload Handler ─── */
+function opsPick() { document.getElementById('csv-file').click(); }
+
+/* State rides on classes now rather than inline styles. The version below used
+   to write hardcoded hex (#ccc, #fafafa, #f4611a) straight onto the element,
+   which beat whatever the theme said and left the zone light in dark mode. */
+function fileSelected(input) {
+    var zone = document.getElementById('upload-zone');
+    var status = document.getElementById('file-status');
+    var name = document.getElementById('file-name');
+    var picked = input.files && input.files.length > 0;
+
+    zone.classList.toggle('picked', picked);
+    zone.classList.remove('over');
+    status.hidden = !picked;
+    if (picked) { name.textContent = '✓ ' + input.files[0].name; }
+}
+
+/* Drag & drop support */
+(function () {
+    var zone = document.getElementById('upload-zone');
+    if (!zone) { return; }
+    var input = document.getElementById('csv-file');
+
+    zone.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        zone.classList.add('over');
+    });
+    zone.addEventListener('dragleave', function (e) {
+        e.preventDefault();
+        zone.classList.remove('over');
+    });
+    zone.addEventListener('drop', function (e) {
+        e.preventDefault();
+        zone.classList.remove('over');
+        input.files = e.dataTransfer.files;
+        fileSelected(input);
+    });
+
+    /* Catch an empty submit here rather than spending a round trip to be told
+       the same thing by the server. */
+    document.getElementById('upload-form').addEventListener('submit', function (e) {
+        if (!input.files || !input.files.length) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            opsPick();
+        }
+    }, true);
+})();
+
+/* Show spinner on form submit */
+document.getElementById('upload-form').addEventListener('submit', function(e) {
+    e.stopPropagation();
+    var spinner = document.getElementById('full-spinner');
+    var msgEl = document.getElementById('full-spinner-msg');
+    var subEl = document.getElementById('full-spinner-sub');
+    msgEl.textContent = 'Processing Upload...';
+    subEl.textContent = 'Parsing chargebacks and running pipeline';
+    spinner.style.display = 'flex';
+});
+</script>
+{% endblock %}

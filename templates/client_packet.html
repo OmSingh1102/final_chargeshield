@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ packet.document_title }}</title>
+    <style>
+        /* A standalone document, not a portal page: no sidebar, no staff header.
+           The toolbar carries the only two ways back into the portal — the case
+           it belongs to, and the merchant's own dashboard — and is itself hidden
+           when printing, so the document that reaches paper stays bare. */
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: #eef1f5;
+            color: #232736;
+            font-family: "Segoe UI", Arial, sans-serif;
+            line-height: 1.55;
+        }
+
+        .toolbar {
+            background: #2d323a; padding: 10px 26px; display: flex;
+            align-items: center; gap: 10px; position: sticky; top: 0; z-index: 20;
+        }
+        .toolbar a, .toolbar button {
+            border: none; border-radius: 6px; padding: 8px 14px; text-decoration: none;
+            font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+        }
+        .toolbar .back-btn { background: #4b5563; color: #fff; }
+        .toolbar .print-btn { background: #1454ae; color: #fff; }
+        .toolbar .title { margin-left: auto; color: #d8dce2; font-size: 13px; }
+
+        .doc-shell { max-width: 980px; margin: 22px auto 32px; }
+        .page {
+            background: #fff; border: 1px solid #d6dde7; padding: 34px 44px 44px;
+            box-shadow: 0 2px 12px rgba(17, 45, 82, .07);
+        }
+
+        .masthead { text-align: center; border-bottom: 2px solid #2e1f17; padding-bottom: 12px; margin-bottom: 24px; }
+        .masthead h1 { font-size: 21px; font-weight: 800; color: #2e1f17; margin: 0; }
+        .masthead .sub { font-size: 13px; color: #6b584c; margin-top: 4px; }
+
+        table.info { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 22px; }
+        table.info td { border: 1px solid #e7ded6; padding: 7px 10px; }
+        table.info td.lbl { font-weight: 700; color: #6b584c; width: 25%; }
+        table.info td.val { font-family: Consolas, "Courier New", monospace; color: #2e1f17; width: 25%; }
+
+        .prose { font-size: 13px; color: #2e1f17; line-height: 1.75; white-space: pre-wrap; margin-bottom: 16px; }
+
+        .mandate { margin: 18px 0 22px 20px; padding: 10px 16px; background: #ffeadd; border-radius: 6px; }
+        .mandate p { margin: 0 0 6px; font-size: 13px; font-style: italic; font-weight: 700; color: #f4611a; }
+        .mandate ol { margin: 0; padding-left: 18px; }
+        .mandate li { font-size: 13px; font-style: italic; font-weight: 700; color: #f4611a; margin: 3px 0; }
+
+        .sec-title {
+            font-size: 14px; font-weight: 800; color: #2e1f17;
+            margin: 26px 0 8px; text-decoration: underline;
+        }
+        .sec-title.end { color: #c62828; }
+
+        .compelling { font-size: 12.5px; font-weight: 700; color: #2e1f17; margin: 10px 0 8px; }
+        .doc-card { border: 1px solid #e7ded6; border-radius: 8px; padding: 14px 16px; background: #fdfbf9; }
+        .doc-card .policy {
+            display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: .4px; color: #b45309; background: #fff4e5;
+            padding: 2px 8px; border-radius: 3px; margin-bottom: 8px;
+        }
+        .doc-card h4 { font-size: 12.5px; font-weight: 800; color: #2e1f17; margin: 12px 0 6px; }
+        .doc-card h4:first-of-type { margin-top: 0; }
+        .doc-card p { font-size: 12.5px; color: #4b4038; margin: 0 0 7px; }
+        table.kv { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+        table.kv td { font-size: 12.5px; padding: 5px 8px; border-bottom: 1px solid #f0e8e1; vertical-align: top; }
+        table.kv td.k { color: #6b584c; width: 34%; }
+        table.kv td.v { color: #2e1f17; }
+
+        .file { border: 1px solid #e7ded6; border-radius: 8px; margin-top: 10px; overflow: hidden; background: #fff; }
+        .file img { width: 100%; height: auto; display: block; }
+        .file .row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 12.5px; }
+        .file .row a { color: #2e7d32; font-weight: 700; text-decoration: none; word-break: break-all; }
+        .file .row .meta { margin-left: auto; color: #9c8578; font-size: 11.5px; white-space: nowrap; }
+
+        .cat { margin-top: 30px; padding-top: 18px; border-top: 2px solid #f7efe9; }
+        .cat h3 { font-size: 15px; font-weight: 800; color: #2e1f17; margin: 0 0 4px; }
+        .cat .lead { font-size: 12px; color: #9c8578; margin: 0 0 14px; }
+        .cat .rank { font-size: 12.5px; font-weight: 800; text-transform: uppercase; margin: 14px 0 8px; }
+        .cat .rank.p { color: #c62828; }
+        .cat .rank.s { color: #6b584c; }
+        .cat .item {
+            border-radius: 6px; padding: 9px 13px; margin-bottom: 6px;
+            font-size: 12.5px; font-weight: 600; color: #2e1f17;
+        }
+        .cat .item.p { background: #fce4ec; border-left: 4px solid #c62828; }
+        .cat .item.s { background: #fcf6f1; border-left: 3px solid #d0bcae; }
+
+        .empty { font-size: 12.5px; color: #9c8578; font-style: italic; margin: 16px 0; }
+        .foot { margin-top: 26px; padding-top: 12px; border-top: 1px solid #e7ded6;
+                font-size: 11px; color: #9c8578; }
+
+        @media print {
+            body { background: #fff; }
+            .toolbar { display: none; }
+            .doc-shell { max-width: none; margin: 0; }
+            .page { border: none; box-shadow: none; padding: 0; }
+            .doc-card, .file, .cat .item { page-break-inside: avoid; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="toolbar">
+    {% include "_home_button.html" %}
+    <a href="{{ back_url }}" class="back-btn">Back to case</a>
+    {% if pdf_url %}<a href="{{ pdf_url }}" class="print-btn" download>&#11015; Download PDF</a>{% endif %}
+    <button class="print-btn" onclick="window.print()">Print</button>
+    <span class="title">{{ packet.document_title }}</span>
+</div>
+
+<div class="doc-shell">
+<section class="page">
+    <div class="masthead">
+        <h1>{{ packet.document_title }}</h1>
+        <div class="sub">{{ packet.subtitle }}</div>
+    </div>
+
+    <table class="info">
+        {% for row in packet.header|batch(2) %}
+        <tr>
+            {% for label, value in row %}
+            <td class="lbl">{{ label }}</td><td class="val">{{ value }}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div class="prose">{{ packet.letter_body }}</div>
+
+    {% if packet.mandate %}
+    <div class="mandate">
+        <p>The compelling evidence listed below are provided as per {{ packet.payment_method }}'s Compelling Evidence Mandate Policy Revision:</p>
+        <ol>
+            {% for line in packet.mandate %}<li>{{ line }}</li>{% endfor %}
+        </ol>
+    </div>
+    {% endif %}
+
+    {# Only the sections that carry something. A packet that lists nine and
+       shows three would be a document lying about itself. #}
+    {% for sec in packet.sections %}
+    <div class="sec-title">{{ sec.title }}:</div>
+    {% if sec.intro %}<div class="prose">{{ sec.intro }}</div>{% endif %}
+
+    {% if sec.document %}
+    <div class="compelling">Compelling Evidence: &#123;{{ sec.document.title }}&#125;</div>
+    <div class="doc-card">
+        {% if sec.document.policy %}<div class="policy">Merchant policy</div>{% endif %}
+        {% for heading, body in sec.document.sections %}
+        <h4>{{ heading }}</h4>
+        {% if body and body[0] is string %}
+            {% for para in body %}<p>{{ para }}</p>{% endfor %}
+        {% else %}
+        <table class="kv">
+            {% for label, value in body %}
+            <tr><td class="k">{{ label }}</td><td class="v">{{ value }}</td></tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% for f in sec.attachments %}
+    <div class="file">
+        {% if f.kind == 'image' %}<img src="{{ f.url }}" alt="{{ f.name }}">{% endif %}
+        <div class="row">
+            <span>&#128196;</span>
+            <a href="{{ f.url }}">{{ f.name }}</a>
+            <span class="meta">{{ f.size_kb }} KB</span>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty">No supporting documents were attached to this dispute.</div>
+    {% endfor %}
+
+    {% if packet.attachment_names %}
+    <div class="sec-title">Attachments:</div>
+    <ol style="font-size:13px; color:#6b584c; margin:0 0 18px 20px; line-height:1.8;">
+        {% for name in packet.attachment_names %}<li>{{ name }}</li>{% endfor %}
+    </ol>
+    {% endif %}
+
+    {% if packet.other_attachments %}
+    <div class="sec-title">Other Attachments:</div>
+    {% for f in packet.other_attachments %}
+    <div class="file">
+        {% if f.kind == 'image' %}<img src="{{ f.url }}" alt="{{ f.name }}">{% endif %}
+        <div class="row">
+            <span>&#128196;</span>
+            <a href="{{ f.url }}">{{ f.name }}</a>
+            <span class="meta">{{ f.size_kb }} KB</span>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if packet.evidence_primary or packet.evidence_secondary %}
+    <div class="cat">
+        <h3>Evidence Categorization</h3>
+        <p class="lead">Evidence is categorized by the dispute's reason code into primary
+            (required to win) and secondary (supporting). Listed here is what this packet carries.</p>
+        {% if packet.evidence_primary %}
+        <div class="rank p">Primary Evidence (Required)</div>
+        {% for name in packet.evidence_primary %}<div class="item p">{{ name }}</div>{% endfor %}
+        {% endif %}
+        {% if packet.evidence_secondary %}
+        <div class="rank s">Secondary Evidence (Supporting)</div>
+        {% for name in packet.evidence_secondary %}<div class="item s">{{ name }}</div>{% endfor %}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if packet.conclusion %}
+    <div class="sec-title end">Conclusion:</div>
+    <div class="prose">{{ packet.conclusion }}</div>
+    {% endif %}
+
+    <div class="foot">Generated {{ packet.generated_at }} &middot; {{ packet.document_title }}</div>
+</section>
+</div>
+</body>
+</html>

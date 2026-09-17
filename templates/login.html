@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Straive sign-in - ChargeShield AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    {# Card, field and button styling comes from the shared .auth-* block in
+       style.css — this page used to carry its own hand-copied version. #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="auth">
+    <div class="auth-wrap">
+        <div class="auth-card">
+            <a class="btn btn-ghost btn-sm auth-back" href="{{ url_for('portal') }}">&larr; Back</a>
+
+            <div class="auth-card-head">
+                <div class="auth-brand-row">
+                    <img class="auth-brand-logo" src="{{ url_for('static', filename='img/straive-logo.png') }}" alt="Straive">
+                    <span class="bar"></span>
+                </div>
+                <h1>Straive Authentication</h1>
+                <div class="lead">Enter your credentials to access the system</div>
+            </div>
+
+            {% if error %}
+            <div class="auth-error">&#9888; {{ error }}</div>
+            {% endif %}
+
+            <form method="post" action="{{ url_for('login') }}">
+                <input type="hidden" name="next" value="{{ next }}">
+                <div class="field">
+                    <label for="email">Email</label>
+                    <input class="input" type="email" id="email" name="email" value="{{ email }}"
+                           autocomplete="email" placeholder="you{{ domain }}" autofocus required>
+                </div>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <input class="input" type="password" id="password" name="password"
+                           autocomplete="current-password" placeholder="Enter your password" required>
+                </div>
+                <div class="field">
+                    <label for="role">Role</label>
+                    {# The value is the login key, the label is the profile. They
+                       differ for agents: Agent1 signs in as `agent`, because the
+                       label names the queue rather than the account. #}
+                    <select class="input" id="role" name="role" required>
+                        {% for name, label in profiles %}
+                        <option value="{{ name }}" {% if name == selected %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Login</button>
+            </form>
+
+            {% if demo_password %}
+            <div class="auth-hint">
+                Any {{ domain }} email &middot; Demo password: <code>{{ demo_password }}</code>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {# No footer copy of the mark: it leads the card now, and showing it twice on
+       one screen only weakened both — the same call made on the portal. #}
+</body>
+</html>

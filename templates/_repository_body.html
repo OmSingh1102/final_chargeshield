@@ -1,0 +1,103 @@
+{# Shared by the agent and team-lead repository pages. `editable` is passed only
+   by the lead page and now governs the SOP tile alone: cover letters and policy
+   documents are edited on the counter evidence page, where a lead can see the
+   text in the packet it belongs to. Both tiles still mark what has been edited,
+   because knowing a template has drifted is useful from here.
+
+   Hiding a button is not a permission — the POST routes carry their own role
+   check. #}
+
+{% set editable = editable|default(false) %}
+
+<div class="rep-section">
+    <h3>Cover Letters</h3>
+    <div class="sub">
+        {{ lib.cover_letters|length }} representment templates, one per reason category.
+        Open one to read the letter that would go out.
+        {%- if editable %} Edited from the counter evidence page of any case in that category.{% endif %}
+    </div>
+    <div class="card-grid">
+        {% for cl in lib.cover_letters %}
+        <button type="button" class="rep-card{% if cl.edited %} is-edited{% endif %}" onclick="openLetter('{{ cl.key }}')">
+            <div class="t">{{ cl.label }}{% if cl.edited %}<span class="edit-dot" title="Edited by {{ cl.edited_by }}">&#9679;</span>{% endif %}</div>
+            <div class="b">{{ cl.subheading }}</div>
+            <div class="meta">
+                {{ cl.points|length }} defence point{{ '' if cl.points|length == 1 else 's' }}
+                {%- if cl.edited %} &middot; edited by {{ cl.edited_by }}{% endif %}
+            </div>
+        </button>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="rep-section">
+    <h3>Client Documents</h3>
+    <div class="sub">
+        {{ lib.documents|length }} evidence documents generated per case from the client's own record.
+        {%- if editable %} The three policy documents carry standing merchant text, rewritten from the counter evidence page; the rest are built from case data.{% endif %}
+    </div>
+    <div class="card-grid">
+        {% for d in lib.documents %}
+        <button type="button" class="rep-card doc-card{% if d.edited %} is-edited{% endif %}" onclick="openDoc('{{ d.key }}')">
+            <div class="t"><span class="ic">{{ d.icon }}</span>{{ d.title }}{% if d.edited %}<span class="edit-dot" title="Edited by {{ d.edited_by }}">&#9679;</span>{% endif %}</div>
+            <div class="b">{{ d.blurb }}</div>
+            <div class="meta">
+                {% if d.columns %}{{ d.columns|length }} fields{% else %}Policy document{% endif %}
+                {%- if d.edited %} &middot; edited by {{ d.edited_by }}{% endif %}
+            </div>
+        </button>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="rep-section">
+    <h3>Standard Operating Procedures
+        {%- if editable %}
+        <button type="button" class="rep-add" onclick="newSop()">+ New procedure</button>
+        {% endif %}
+    </h3>
+    <div class="sub">
+        {{ lib.sops|length }} internal procedure{{ '' if lib.sops|length == 1 else 's' }}.
+        Reference only &mdash; no case ever carries an SOP.
+    </div>
+    <div class="card-grid">
+        {% for s in lib.sops %}
+        <button type="button" class="rep-card sop-card{% if s.edited %} is-edited{% endif %}" onclick="openSop('{{ s.key }}')">
+            <div class="t"><span class="ic">&#128220;</span>{{ s.title }}{% if s.edited %}<span class="edit-dot" title="Edited by {{ s.edited_by }}">&#9679;</span>{% endif %}</div>
+            <div class="b">{{ s.body.split('\n')[0][:90] }}{% if s.body|length > 90 %}&hellip;{% endif %}</div>
+            <div class="meta">
+                {% if s.seeded %}Built-in{% else %}Added by {{ s.edited_by or 'a team lead' }}{% endif %}
+            </div>
+        </button>
+        {% endfor %}
+    </div>
+</div>
+
+{# ── Viewer ── #}
+<div class="rep-overlay" id="rep-overlay" onclick="if (event.target === this) closeRep()">
+    <div class="rep-modal">
+        <header>
+            <div>
+                <h4 id="rep-title">&nbsp;</h4>
+                <div class="s" id="rep-sub"></div>
+            </div>
+            <button class="rep-close" onclick="closeRep()" aria-label="Close">&times;</button>
+        </header>
+        <div class="rep-body" id="rep-body"></div>
+        {% if editable %}
+        <footer class="rep-foot" id="rep-foot" hidden>
+            <span class="rep-status" id="rep-status"></span>
+            <button type="button" class="rep-btn ghost" id="rep-revert" onclick="revertTemplate()">Revert to built-in</button>
+            <button type="button" class="rep-btn" id="rep-edit" onclick="startEdit()">Edit</button>
+            <button type="button" class="rep-btn primary" id="rep-save" onclick="saveTemplate()" hidden>Save</button>
+            <button type="button" class="rep-btn ghost" id="rep-cancel" onclick="cancelEdit()" hidden>Cancel</button>
+        </footer>
+        {% endif %}
+    </div>
+</div>
+
+<script type="application/json" id="rep-data">
+{{ {'letters': lib.cover_letters, 'documents': lib.documents, 'sops': lib.sops,
+    'letter_fields': lib.letter_fields, 'placeholders': lib.placeholders,
+    'editable': editable} | tojson }}
+</script>

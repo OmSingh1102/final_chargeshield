@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+{# Blue rather than orange, matching the client portal it signs you in to.
+   .client-theme repoints the shared tokens; the .auth-* classes are the same
+   ones login.html uses. #}
+<html lang="en" class="client-theme">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Merchant sign-in - ChargeShield AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* The merchant screens sit on a cool slate wash rather than the warm
+           one the internal side uses. */
+        body.auth { background-image: linear-gradient(to bottom right, #f8fafc 0%, #f1f5f9 100%); }
+        /* Navy, not the theme blue. The blue is already spent on the tile and
+           the card's left edge; a third one would leave nothing leading. */
+        .auth-card.client .btn-primary { background: #111827; box-shadow: var(--shadow-sm); }
+        .auth-card.client .btn-primary:hover { background: #0b1220; }
+    </style>
+</head>
+<body class="auth">
+    <div class="auth-wrap">
+        <a class="btn btn-ghost btn-sm auth-back" href="{{ url_for('portal') }}">&larr; Back to Login Selection</a>
+
+        <div class="auth-card client">
+            <div class="auth-card-head" style="text-align:center">
+                <div class="auth-tile-lg">&#127970;</div>
+                <h1>Merchant Portal</h1>
+                <div class="lead">Sign in to access your chargeback dashboard</div>
+            </div>
+
+            {% if error %}
+            <div class="auth-error">&#9888; {{ error }}</div>
+            {% endif %}
+
+            {# No profile picker here, unlike the Straive door: there is one
+               merchant book, so there is nothing to choose between. #}
+            <form method="post" action="{{ url_for('client_login') }}">
+                <div class="field">
+                    <label for="email">Email Address</label>
+                    <div class="field-icon">
+                        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="2" y="4" width="20" height="16" rx="2"/>
+                            <path d="m22 7-9 5.7a2 2 0 0 1-2 0L2 7"/>
+                        </svg>
+                        <input class="input" type="email" id="email" name="email" value="{{ email }}"
+                               autocomplete="email" placeholder="your@company.com" autofocus required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <div class="field-icon">
+                        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3" y="11" width="18" height="11" rx="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <input class="input" type="password" id="password" name="password"
+                               autocomplete="current-password" placeholder="Enter your password" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+            </form>
+
+            {% if demo_password %}
+            <div class="auth-hint">
+                Demo: Use any valid email address and password <code>{{ demo_password }}</code>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

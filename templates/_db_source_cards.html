@@ -1,0 +1,204 @@
+{#- The five source systems a case is assembled from, shown as the cards they
+    arrive in. Rendered on the case page and on the defense review packet, which
+    is why this is a partial rather than markup on either one — the packet used
+    to carry its own thinner "Case-Specific Evidence Summary" of the same fields,
+    and the two had already drifted on currency.
+
+    Needs `case`, `order` (from _order_view in app.py) and `fetched_at`.
+
+    `src` is the raw sheet row behind this case, an empty dict for seeded cases
+    that have none — the same idiom client_case.html uses. Both locals are set
+    here rather than inherited: a partial with two callers should not depend on
+    both of them happening to declare the same names. -#}
+{%- set src = case.get('source') or {} %}
+{%- set cur = case.currency or 'USD' %}
+
+{#- One classifier for every pass/partial/fail check on these cards, so two
+    cards cannot disagree about what red means. Before this, the colouring was
+    three unrelated things: one hardcoded red on the disputed amount, four
+    green/red conditionals written independently, and AVS/CVV — two checks that
+    genuinely fail — with no colour at all.
+
+    Matched on the response text rather than the leading code letter: the sheet
+    writes "N - No Match", "Y - Match", "A - Attempted", and that letter means
+    different things across AVS, CVV and 3DS. Fail is tested before warn, so
+    "N - Not Authenticated" cannot fall into the "attempted" branch. Anything
+    unrecognised is amber, never green: an unknown response is not a pass. -#}
+{%- macro verdict(value) -%}
+{%- set v = (value or '')|lower -%}
+{%- if not v or 'unavailable' in v or 'not processed' in v or 'not checked' in v -%}warn
+{%- elif 'no match' in v or 'not authenticated' in v or 'mismatch' in v or 'failed' in v -%}fail
+{%- elif 'attempted' in v or 'partial' in v or 'bypass' in v -%}warn
+{%- elif 'match' in v or 'authenticated' in v or 'pass' in v -%}pass
+{%- else -%}warn{%- endif -%}
+{%- endmacro -%}
+
+{#- Which of the ontology's four databases each card speaks for, so the
+    same system carries the same name on the Evidence Requirements page, the
+    per-case checklist and these cards. Merchant & Descriptor is app metadata
+    with no ontology database behind it, so it carries no chip. `dbs` is
+    DATABASES from evidence_matrix.py, passed by both routes that include this
+    partial; the default() keeps a third includer at "no chips", not a 500. -#}
+{%- set dbs = dbs|default({}) %}
+{%- macro db_chip(key) -%}
+{%- if dbs.get(key) %} <span class="em-db" title="{{ dbs[key].name }} &mdash; {{ dbs[key].focus }}">DB {{ key }}</span>{% endif %}
+{%- endmacro %}
+
+<!-- Database Source Legend -->
+<div class="db-legend">
+    <span class="lead-in">FETCHED FROM:</span>
+    <div class="db-legend-item"><span class="db-legend-dot" style="background:#f4611a;"></span> Order History DB</div>
+    <div class="db-legend-item"><span class="db-legend-dot" style="background:#b45309;"></span> Merchant DB</div>
+    <div class="db-legend-item"><span class="db-legend-dot" style="background:#2e7d32;"></span> Payment Gateway DB</div>
+    <div class="db-legend-item"><span class="db-legend-dot" style="background:#e65100;"></span> Shipping / POD</div>
+    <div class="db-legend-item"><span class="db-legend-dot" style="background:#9a3412;"></span> Customer / Issuer DB</div>
+    <span class="fetched">&#9679; Data fetched at {{ fetched_at }}</span>
+</div>
+
+<!-- ═══ Order History DB (Blue) ═══ -->
+<div class="db-card order">
+    <h3><span class="tag">Order History DB</span> Transaction &amp; Product Data{{ db_chip('I') }}</h3>
+    <div class="fields">
+        <div class="f"><span class="fl">Case ID</span><span class="fv mono">{{ case.case_id }}</span></div>
+        <div class="f"><span class="fl">Order ID</span><span class="fv mono">{{ case.order_id }}</span></div>
+        <div class="f"><span class="fl">Transaction Date</span><span class="fv">{{ case.transaction_date }}</span></div>
+        <div class="f"><span class="fl">Submission Date</span><span class="fv">{{ case.submission_date }}</span></div>
+        {# Two thirds of the book is IDR or NGN. A hardcoded "$" turned an
+           IDR 162.17 dispute into a $162.17 one on the page a manager reads. #}
+
+        {# The headline number, sized to lead. It used to be unconditionally red,
+           which read as a failed check on every case regardless of its state. #}
+        <div class="f"><span class="fl">Disputed Amount</span><span class="fv lead">{{ cur }} {{ "%.2f"|format(case.amount) }}</span></div>
+        <div class="f"><span class="fl">Amount Authorized</span><span class="fv">{{ cur }} {{ "%.2f"|format(case.amount_authorized) }}</span></div>
+        {# Carried over from the review packet's old evidence summary, which was
+           the only place it appeared. It is the one field that panel showed and
+           these cards did not. #}
+        <div class="f"><span class="fl">Amount Settled</span><span class="fv">{{ cur }} {{ "%.2f"|format(case.amount_settled) }}</span></div>
+        <div class="f"><span class="fl">Reason Code</span><span class="fv">{{ case.reason_code }} &mdash; {{ case.scenario }}</span></div>
+        <div class="f"><span class="fl">Processor</span><span class="fv">{{ case.processor }}</span></div>
+        <div class="f"><span class="fl">Product</span><span class="fv">{{ order.product_name }}</span></div>
+        <div class="f"><span class="fl">Product ID</span><span class="fv mono">{{ order.product_id }}</span></div>
+        <div class="f"><span class="fl">Category</span><span class="fv">{{ order.product_category }}</span></div>
+        {# Was a hardcoded "$" on a book that is two thirds IDR and NGN. #}
+        <div class="f"><span class="fl">Qty / Unit Price</span><span class="fv">{{ order.quantity }} x {{ cur }} {{ order.unit_price or "%.2f"|format(case.amount) }}</span></div>
+        <div class="f"><span class="fl">Return Policy</span><span class="fv">{{ order.return_policy_days }} days</span></div>
+        <div class="f">
+            <span class="fl">Status</span>
+            <span class="fv"><span class="status-badge {{ case.submission_status|lower if case.submission_status else 'pending' }}">{{ case.submission_status }}</span></span>
+        </div>
+        <div class="f">
+            <span class="fl">Outcome</span>
+            <span class="fv"><span class="status-badge {{ case.outcome|lower if case.outcome else 'pending' }}">{{ case.outcome }}</span></span>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ Merchant DB (Purple) ═══ -->
+<div class="db-card merchant">
+    <h3><span class="tag">Merchant DB</span> Merchant &amp; Descriptor Info</h3>
+    <div class="fields">
+        <div class="f"><span class="fl">Merchant</span><span class="fv">{{ case.merchant }}</span></div>
+        <div class="f"><span class="fl">Merchant Account</span><span class="fv mono">{{ case.merchant_account }}</span></div>
+        <div class="f"><span class="fl">Descriptor Name</span><span class="fv">{{ case.descriptor_name }}</span></div>
+        <div class="f"><span class="fl">Descriptor URL</span><span class="fv">{{ case.descriptor_url }}</span></div>
+    </div>
+</div>
+
+<!-- ═══ Payment Gateway DB (Green) ═══ -->
+<div class="db-card payment">
+    <h3><span class="tag">Payment Gateway DB</span> Authentication &amp; Verification{{ db_chip('III') }}</h3>
+    <div class="fields">
+        <div class="f">
+            <span class="fl">Payment Method</span>
+            {# The badge class was hardcoded to "visa", so a Mastercard case
+               wore Visa's navy and an Amex case wore it too. The four rules
+               already exist in style.css. #}
+            {% set ct = case.payment_method|upper %}
+            <span class="fv"><span class="network-badge {% if 'VISA' in ct %}visa{% elif 'MASTER' in ct %}mastercard{% elif 'AMEX' in ct or 'AMERICAN' in ct %}amex{% elif 'DISCOVER' in ct %}discover{% endif %}" style="font-size:10px;">{{ ct }}</span> {{ case.payment_method }} ****{{ case.card_last_four }}</span>
+        </div>
+        {# These two carried no colour at all, so a failed AVS or CVV check —
+           the thing an issuer will press hardest on — sat in plain ink beside
+           fields that were coloured for decoration. #}
+        <div class="f"><span class="fl">AVS Response</span><span class="fv {{ verdict(case.avs_response)|trim }}">{{ case.avs_response }}</span></div>
+        <div class="f"><span class="fl">CVV Response</span><span class="fv {{ verdict(case.cvv_response)|trim }}">{{ case.cvv_response }}</span></div>
+        <div class="f">
+            {# "A - Attempted" is a partial pass. It used to render as hard red,
+               indistinguishable from "N - Not Authenticated". #}
+            <span class="fl">3D Secure</span>
+            <span class="fv {{ verdict(case.threed_secure)|trim }}">{{ case.threed_secure }}</span>
+        </div>
+        <div class="f">
+            <span class="fl">Liability Shift</span>
+            <span class="fv {{ 'pass' if case.liability_shift else 'fail' }}">{{ 'Yes - Issuer Liable' if case.liability_shift else 'No - Merchant Liable' }}</span>
+        </div>
+        <div class="f"><span class="fl">Dispute PSP Ref</span><span class="fv mono">{{ case.dispute_psp_ref }}</span></div>
+        <div class="f"><span class="fl">Payment PSP Ref</span><span class="fv mono">{{ case.payment_psp_ref }}</span></div>
+    </div>
+</div>
+
+<!-- ═══ Shipping / POD (Orange) ═══ -->
+<div class="db-card shipping">
+    <h3><span class="tag">Shipping / POD</span> Delivery &amp; Fulfillment Proof{{ db_chip('IV') }}</h3>
+    <div class="fields">
+        {#- Was a strict == 'Delivered', so every "Digital Delivery - Completed"
+            order — a fulfilled one — was painted amber as if it were still in
+            flight. Matched loosely now, and fail is tested first so a value
+            like "Undeliverable" cannot be caught by the "deliver" test. -#}
+        {%- set fs = (order.fulfillment_status or '')|lower %}
+        {%- set fs_cls = 'fail' if ('return' in fs or 'undeliver' in fs or 'fail' in fs or 'cancel' in fs)
+                    else ('pass' if ('deliver' in fs or 'complete' in fs) else 'warn') %}
+        <div class="f">
+            <span class="fl">Fulfillment Status</span>
+            <span class="fv {{ fs_cls }}">{{ order.fulfillment_status }}</span>
+        </div>
+        <div class="f"><span class="fl">Shipping Carrier</span><span class="fv">{{ order.shipping_carrier }}</span></div>
+        <div class="f"><span class="fl">Tracking Number</span><span class="fv mono" style="font-size:11px;">{{ order.tracking_number }}</span></div>
+        <div class="f"><span class="fl">Delivery Date</span><span class="fv">{{ order.delivery_date }}</span></div>
+        {#- This column is DeliverySignedBy — it holds the *signer's name*, or
+            N/A. The old test compared it to the string "Yes", which it never
+            is, so a signed proof of delivery — the strongest evidence on the
+            page — rendered red on every case that had one. A name means
+            somebody signed for it.
+
+            No signature is amber, not red, and that is the same call made on
+            Auto-Defended below and on an empty response in verdict() above.
+            Red is for evidence that works against us — AVS says no match,
+            liability sits with the merchant. An unsigned delivery is a gap in
+            the file, not a finding against it, and only 39 of 100 deliveries
+            were signed for, so red here would drown out the real failures. -#}
+        {%- set signed = (order.delivery_signed or '')|trim %}
+        {%- set has_sig = signed and signed|lower not in ('n/a', 'na', 'no', 'none', '-', '—', 'unsigned') %}
+        <div class="f">
+            <span class="fl">Delivery Signed</span>
+            <span class="fv {{ 'pass' if has_sig else 'warn' }}">{{ signed or '—' }}</span>
+        </div>
+        <div class="f">
+            {#- No class when it is No: a case that has not been auto-defended is
+                a state, not a failed check, and red here competed with the
+                evidence checks that genuinely did fail. -#}
+            <span class="fl">Auto-Defended</span>
+            <span class="fv {{ 'pass' if case.auto_defended else '' }}">{{ 'Yes' if case.auto_defended else 'No' }}</span>
+        </div>
+        <div class="f"><span class="fl">Acquirer Ref</span><span class="fv mono" style="font-size:11px;">{{ case.acquirer_ref }}</span></div>
+    </div>
+</div>
+
+<!-- ═══ Customer / Issuer DB (Teal) ═══ -->
+<div class="db-card customer">
+    <h3><span class="tag">Customer / Issuer DB</span> Cardholder &amp; Issuer Data{{ db_chip('II') }}</h3>
+    <div class="fields">
+        {# Card Expiry used to sit here, permanently blank: app.py hardcoded it
+           to "" and the dispute sheet carries no expiry column at all. A row
+           that can never be filled is worse than no row. #}
+        <div class="f"><span class="fl">Cardholder</span><span class="fv">{{ case.cardholder }}</span></div>
+        <div class="f"><span class="fl">Card Number</span><span class="fv mono">{{ src.get('CardNumberMasked') or '—' }}</span></div>
+        <div class="f"><span class="fl">Issuer Country</span><span class="fv">{{ case.issuer_country }}</span></div>
+        <div class="f"><span class="fl">Issuer Name</span><span class="fv">{{ case.issuer_name }}</span></div>
+        <div class="f"><span class="fl">Customer ID</span><span class="fv mono">{{ order.customer_id }}</span></div>
+        <div class="f"><span class="fl">Customer Email</span><span class="fv">{{ order.customer_email }}</span></div>
+        <div class="f"><span class="fl">Customer Phone</span><span class="fv mono">{{ order.customer_phone }}</span></div>
+        <div class="f"><span class="fl">Customer Location</span><span class="fv">{{ order.customer_location }}</span></div>
+        <div class="f"><span class="fl">Customer IP</span><span class="fv mono">{{ order.customer_ip }}</span></div>
+        <div class="f"><span class="fl">Device</span><span class="fv">{{ order.device_type }}</span></div>
+    </div>
+</div>

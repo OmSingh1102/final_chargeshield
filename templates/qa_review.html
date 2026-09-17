@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}Agent Page - ChargeShield AI{% endblock %}
+
+{% block extra_css %}
+<style>
+    .qa-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+    .qa-card { background: var(--surface, #fff); border-radius: 12px; padding: 18px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: center; border-bottom: 3px solid var(--c-dddddd, #ddd); }
+    .qa-card .qc-val { font-size: 32px; font-weight: 800; line-height: 1.1; margin-bottom: 4px; }
+    .qa-card .qc-lbl { font-size: 11px; color: var(--c-888888, #888); font-weight: 600; text-transform: uppercase; }
+
+    .qa-section { background: var(--surface, #fff); border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 24px; }
+    .qa-section h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+    /* Tables */
+    .qa-table { width: 100%; border-collapse: collapse; }
+    .qa-table thead th { background: var(--c-fdf9f6, #fdf9f6); padding: 10px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--c-888888, #888); text-align: left; border-bottom: 2px solid var(--c-e8e8e8, #e8e8e8); }
+    .qa-table tbody td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--c-f0f0f0, #f0f0f0); vertical-align: middle; }
+    .qa-table tbody tr:hover { background: var(--brand-wash, #fff7f2); }
+    .qa-table tbody tr.flagged { background: var(--c-fff8f8, #fff8f8); }
+
+    .verdict-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+    .verdict-badge.correct { background: #e8f5e9; color: #2e7d32; }
+    .verdict-badge.incorrect { background: #fce4ec; color: #c62828; }
+    .verdict-badge.review { background: #fff3e0; color: #e65100; }
+
+    .issue-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; background: #fce4ec; color: #c62828; margin: 1px; }
+    .issue-tag.warn { background: #fff3e0; color: #e65100; }
+
+    /* Agent quality cards */
+    .analyst-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+    .analyst-card { border: 1px solid var(--c-e8e8e8, #e8e8e8); border-radius: 10px; padding: 18px; }
+    .analyst-card h4 { font-size: 14px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .analyst-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--c-f5f5f5, #f5f5f5); }
+    .analyst-row:last-child { border-bottom: none; }
+    .analyst-row .ar-l { color: var(--c-888888, #888); }
+    .analyst-row .ar-v { font-weight: 700; }
+
+    .quality-ring { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; color: var(--on-accent, #fff); flex-shrink: 0; }
+
+    /* Flagged cases */
+    .flag-card { border: 1px solid #ef9a9a; border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; background: var(--c-fff8f8, #fff8f8); }
+    .flag-card.medium { border-color: var(--c-ffe082, #ffe082); background: var(--c-fffde7, #fffde7); }
+    .flag-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .flag-header .fh-id { font-family: monospace; font-weight: 700; font-size: 14px; color: var(--brand, #f4611a); }
+    .flag-list { list-style: none; padding: 0; margin: 0; }
+    .flag-list li { padding: 4px 0; font-size: 12px; color: var(--c-555555, #555); display: flex; align-items: center; gap: 6px; }
+    .flag-list li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .flag-card .flag-list li::before { background: #c62828; }
+    .flag-card.medium .flag-list li::before { background: #e65100; }
+
+    /* Compliance */
+    .compliance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+    .comp-card { border: 1px solid var(--c-e8e8e8, #e8e8e8); border-radius: 8px; padding: 12px; text-align: center; }
+    .comp-card .cc-id { font-family: monospace; font-weight: 700; font-size: 12px; color: var(--brand, #f4611a); margin-bottom: 6px; }
+    .comp-card .cc-score { font-size: 24px; font-weight: 800; margin-bottom: 4px; }
+    .comp-checks { text-align: left; font-size: 11px; }
+    .comp-checks div { padding: 2px 0; display: flex; gap: 4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:24px;">
+    <h2 style="font-size:22px; font-weight:700;">Agent Page</h2>
+    <p style="color:#666; font-size:14px;">Audit automated decisions, review agent work quality, and ensure compliance</p>
+</div>
+
+<!-- QA Stats -->
+<div class="qa-stats">
+    <div class="qa-card" style="border-bottom-color:#f4611a;">
+        <div class="qc-val" style="color:#f4611a;">{{ qa.stats.cases_audited }}</div>
+        <div class="qc-lbl">Cases Audited</div>
+    </div>
+    <div class="qa-card" style="border-bottom-color:#b45309;">
+        <div class="qc-val" style="color:#b45309;">{{ qa.stats.auto_reviewed }}</div>
+        <div class="qc-lbl">Auto-Decisions Reviewed</div>
+    </div>
+    <div class="qa-card" style="border-bottom-color:#c62828;">
+        <div class="qc-val" style="color:#c62828;">{{ qa.stats.issues_found }}</div>
+        <div class="qc-lbl">Issues Found</div>
+    </div>
+    <div class="qa-card" style="border-bottom-color:#2e7d32;">
+        <div class="qc-val" style="color:#2e7d32;">{{ qa.stats.compliance_score }}%</div>
+        <div class="qc-lbl">Compliance Score</div>
+    </div>
+</div>
+
+<!-- Auto-Decision Audit -->
+<div class="qa-section">
+    <h3>&#129302; Auto-Decision Audit</h3>
+    <p style="font-size:13px; color:#666; margin-bottom:14px;">Review ML-automated decisions for accuracy and evidence quality</p>
+    <table class="qa-table">
+        <thead>
+            <tr>
+                <th>Case ID</th>
+                <th>Reason Code</th>
+                <th>Amount</th>
+                <th>ML Confidence</th>
+                <th>Evidence</th>
+                <th>Outcome</th>
+                <th>Verdict</th>
+                <th>Issue</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in qa.auto_audit %}
+            <tr class="{% if a.issue %}flagged{% endif %}">
+                <td><a href="{{ url_for('case_detail', case_id=a.case_id) }}" style="font-family:monospace; font-weight:700; color:#f4611a;">{{ a.case_id }}</a></td>
+                <td>{{ reason_label(a.reason_code, a.network) }}</td>
+                <td style="font-weight:600;">${{ "%.2f"|format(a.amount) }}</td>
+                <td>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                        <div style="width:50px; height:6px; background:#eee; border-radius:3px; overflow:hidden;">
+                            <div style="height:100%; width:{{ a.confidence }}%; background:{% if a.confidence >= 70 %}#2e7d32{% elif a.confidence >= 40 %}#f57f17{% else %}#c62828{% endif %}; border-radius:3px;"></div>
+                        </div>
+                        <span style="font-size:12px; font-weight:700;">{{ a.confidence }}%</span>
+                    </div>
+                </td>
+                <td>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                        <div style="width:40px; height:6px; background:#eee; border-radius:3px; overflow:hidden;">
+                            <div style="height:100%; width:{{ a.completeness }}%; background:{% if a.completeness >= 80 %}#2e7d32{% elif a.completeness >= 50 %}#f57f17{% else %}#c62828{% endif %}; border-radius:3px;"></div>
+                        </div>
+                        <span style="font-size:11px;">{{ a.completeness }}%</span>
+                    </div>
+                </td>
+                <td>
+                    <span style="font-weight:600; color:{% if a.outcome == 'Win' %}#2e7d32{% elif a.outcome == 'Pending' %}#f57f17{% else %}#c62828{% endif %};">
+                        {{ a.outcome }}
+                    </span>
+                </td>
+                <td>
+                    <span class="verdict-badge {% if a.correct %}correct{% elif a.issue %}review{% else %}incorrect{% endif %}">
+                        {% if a.correct %}Correct{% else %}Review{% endif %}
+                    </span>
+                </td>
+                <td>
+                    {% if a.issue %}
+                    <span class="issue-tag {% if 'below' in a.issue %}warn{% endif %}">{{ a.issue }}</span>
+                    {% else %}
+                    <span style="color:#aaa; font-size:12px;">None</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Agent Work Quality -->
+<div class="qa-section">
+    <h3>&#128101; Agent Work Quality</h3>
+    <div class="analyst-grid">
+        {% for an in qa.analysts %}
+        <div class="analyst-card">
+            <div style="display:flex; gap:12px; align-items:center;">
+                <div class="quality-ring" style="background:{% if an.quality_score >= 90 %}#2e7d32{% elif an.quality_score >= 70 %}#f57f17{% else %}#c62828{% endif %};">{{ an.quality_score }}</div>
+                <div>
+                    <h4 style="margin:0;">
+                        <span style="width:8px; height:8px; border-radius:50%; background:{% if an.status == 'Online' %}#2e7d32{% else %}#f57f17{% endif %}; display:inline-block;"></span>
+                        {{ an.name }}
+                    </h4>
+                    <div style="font-size:11px; color:#888;">Quality Score</div>
+                </div>
+            </div>
+            <div style="margin-top:12px;">
+                <div class="analyst-row"><span class="ar-l">Cases Reviewed</span><span class="ar-v">{{ an.cases_reviewed }}</span></div>
+                <div class="analyst-row"><span class="ar-l">Win Rate</span><span class="ar-v" style="color:{% if an.win_rate >= 70 %}#2e7d32{% elif an.win_rate >= 50 %}#f57f17{% else %}#c62828{% endif %};">{{ an.win_rate }}%</span></div>
+                <div class="analyst-row"><span class="ar-l">Avg Review Time</span><span class="ar-v">{{ an.avg_time_min }} min</span></div>
+                <div class="analyst-row"><span class="ar-l">Issues Flagged</span><span class="ar-v" style="color:{% if an.issues > 0 %}#c62828{% else %}#2e7d32{% endif %};">{{ an.issues }}</span></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Flagged Cases -->
+{% if qa.flagged %}
+<div class="qa-section">
+    <h3>&#128680; Flagged Cases Requiring Attention</h3>
+    {% for f in qa.flagged %}
+    <div class="flag-card {% if f.severity == 'medium' %}medium{% endif %}">
+        <div class="flag-header">
+            <div>
+                <span class="fh-id"><a href="{{ url_for('case_detail', case_id=f.case_id) }}">{{ f.case_id }}</a></span>
+                <span style="font-size:12px; color:#888; margin-left:8px;">${{ "%.2f"|format(f.amount) }} | Confidence: {{ f.confidence }}% | {{ f.outcome }}</span>
+            </div>
+            <span class="verdict-badge {% if f.severity == 'high' %}incorrect{% else %}review{% endif %}">{{ f.severity|title }} Priority</span>
+        </div>
+        <ul class="flag-list">
+            {% for flag in f.flags %}
+            <li>{{ flag }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Compliance Checklist -->
+<div class="qa-section">
+    <h3>&#9989; Compliance Checklist by Case</h3>
+    <div class="compliance-grid">
+        {% for c in qa.compliance %}
+        <div class="comp-card" style="border-color:{% if c.score >= 80 %}#a5d6a7{% elif c.score >= 60 %}#ffe082{% else %}#ef9a9a{% endif %};">
+            <div class="cc-id"><a href="{{ url_for('case_detail', case_id=c.case_id) }}">{{ c.case_id }}</a></div>
+            <div class="cc-score" style="color:{% if c.score >= 80 %}#2e7d32{% elif c.score >= 60 %}#f57f17{% else %}#c62828{% endif %};">{{ c.score }}%</div>
+            <div style="font-size:10px; color:#888; margin-bottom:6px;">{{ c.passed }}/{{ c.total }} checks passed</div>
+            <div class="comp-checks">
+                {% for check, passed in c.checks.items() %}
+                <div style="color:{% if passed %}#2e7d32{% else %}#c62828{% endif %};">
+                    {% if passed %}&#9989;{% else %}&#10060;{% endif %} {{ check }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
